@@ -602,6 +602,7 @@ impl Daemon {
         let command_sender = daemon_command_channel.sender();
         let management_interface =
             ManagementInterfaceServer::start(command_sender, rpc_socket_path)
+                .await
                 .map_err(Error::ManagementInterfaceError)?;
 
         let (internal_event_tx, internal_event_rx) = daemon_command_channel.destructure();

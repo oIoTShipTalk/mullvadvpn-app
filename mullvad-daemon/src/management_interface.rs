@@ -1122,7 +1122,7 @@ pub struct ManagementInterfaceServer {
 }
 
 impl ManagementInterfaceServer {
-    pub fn start(
+    pub async fn start(
         daemon_tx: DaemonCommandSender,
         rpc_socket_path: impl AsRef<Path>,
     ) -> Result<ManagementInterfaceServer, Error> {
@@ -1142,6 +1142,7 @@ impl ManagementInterfaceServer {
             },
             &rpc_socket_path,
         )
+        .await
         .map_err(Error::SetupError)?;
 
         log::info!(

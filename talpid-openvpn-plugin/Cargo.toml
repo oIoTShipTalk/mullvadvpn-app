@@ -22,7 +22,7 @@ openvpn-plugin = { version = "0.4.2", features = ["serde", "log", "auth-failed-e
 talpid-types = { path = "../talpid-types" }
 
 tokio = { workspace = true, features =  ["rt"] }
-parity-tokio-ipc = { workspace = true }
+parity-tokio-ipc = "0.9"
 tonic = { workspace = true }
 tower = { workspace = true }
 prost = { workspace = true }

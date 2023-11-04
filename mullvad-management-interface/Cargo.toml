@@ -25,7 +25,7 @@ prost = { workspace = true }
 prost-types = { workspace = true }
 futures = { workspace = true }
 tokio = { workspace = true, features =  ["rt"] }
-parity-tokio-ipc = { workspace = true }
+tokio-stream = { workspace = true, features = ["net"] }
 
 [target.'cfg(unix)'.dependencies]
 nix = "0.23"
