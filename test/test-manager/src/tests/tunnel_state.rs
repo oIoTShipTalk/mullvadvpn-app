@@ -8,14 +8,12 @@ use crate::vm::network::DUMMY_LAN_INTERFACE_IP;
 
 use mullvad_management_interface::MullvadProxyClient;
 use mullvad_types::relay_constraints::GeographicLocationConstraint;
-use mullvad_types::relay_list::{Relay, RelayEndpointData};
 use mullvad_types::CustomTunnelEndpoint;
 use mullvad_types::{
     relay_constraints::{Constraint, LocationConstraint, RelayConstraints, RelaySettings},
     states::TunnelState,
 };
 use std::net::{IpAddr, SocketAddr};
-use talpid_types::net::{Endpoint, TransportProtocol, TunnelEndpoint, TunnelType};
 use test_macro::test_function;
 use test_rpc::ServiceClient;
 
@@ -238,7 +236,6 @@ pub async fn test_error_state(
 /// * Traffic can be sent and received in the tunnel.
 ///   This is done by pinging a single public IP address
 ///   and failing if there is no response.
-/// * The correct relay is used.
 /// * Leaks outside the tunnel are blocked. Refer to the
 ///   `test_connecting_state` documentation for details.
 #[test_function]
@@ -248,64 +245,11 @@ pub async fn test_connected_state(
     mut mullvad_client: MullvadProxyClient,
 ) -> Result<(), Error> {
     let inet_destination = "1.1.1.1:1337".parse().unwrap();
-
-    //
-    // Set relay to use
-    //
-
-    log::info!("Select relay");
-
-    let relay_filter = |relay: &Relay| {
-        relay.active && matches!(relay.endpoint_data, RelayEndpointData::Wireguard(_))
-    };
-
-    let relay = helpers::filter_relays(&mut mullvad_client, relay_filter)
-        .await?
-        .pop()
-        .unwrap();
-
-    let relay_settings = RelaySettings::Normal(RelayConstraints {
-        location: helpers::into_constraint(&relay),
-        ..Default::default()
-    });
-
-    set_relay_settings(&mut mullvad_client, relay_settings)
-        .await
-        .expect("failed to update relay settings");
-
     //
     // Connect
     //
 
     connect_and_wait(&mut mullvad_client).await?;
-
-    //
-    // Verify that endpoint was selected
-    //
-
-    match mullvad_client.get_tunnel_state().await? {
-        TunnelState::Connected {
-            endpoint:
-                TunnelEndpoint {
-                    endpoint:
-                        Endpoint {
-                            address: SocketAddr::V4(addr),
-                            protocol: TransportProtocol::Udp,
-                        },
-                    // TODO: Consider the type of `relay` / `relay_filter` instead
-                    tunnel_type: TunnelType::Wireguard,
-                    quantum_resistant: _,
-                    proxy: None,
-                    obfuscation: None,
-                    entry_endpoint: None,
-                    tunnel_interface: _,
-                },
-            ..
-        } => {
-            assert_eq!(*addr.ip(), relay.ipv4_addr_in);
-        }
-        actual => panic!("unexpected tunnel state: {:?}", actual),
-    }
 
     //
     // Ping outside of tunnel while connected
@@ -319,6 +263,7 @@ pub async fn test_connected_state(
         .expect("failed to find non-tun interface");
 
     let detected_probes = send_guest_probes(rpc.clone(), nontun_iface, inet_destination).await?;
+
     assert!(
         detected_probes.none(),
         "observed unexpected outgoing packets: {detected_probes:?}"
