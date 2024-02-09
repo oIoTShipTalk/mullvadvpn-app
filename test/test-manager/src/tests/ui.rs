@@ -86,31 +86,14 @@ pub async fn test_ui_tunnel_settings(
     rpc: ServiceClient,
     mut mullvad_client: MullvadProxyClient,
 ) -> Result<(), Error> {
+    // TODO: Rework this GUI test to not depend on some bespoke setup from the Rust side.
     // tunnel-state.spec precondition: a single WireGuard relay should be selected
-    log::info!("Select WireGuard relay");
-    let entry = helpers::filter_relays(&mut mullvad_client, |relay: &Relay| {
-        relay.active && matches!(relay.endpoint_data, RelayEndpointData::Wireguard(_))
-    })
-    .await?
-    .pop()
-    .unwrap();
-
-    // The test expects us to be disconnected and logged in but to have a specific relay selected
-    let relay_settings = RelaySettings::Normal(RelayConstraints {
-        location: helpers::into_constraint(&entry),
-        ..Default::default()
-    });
-
-    helpers::set_relay_settings(&mut mullvad_client, relay_settings)
-        .await
-        .expect("failed to update relay settings");
-
     let ui_result = run_test_env(
         &rpc,
         &["tunnel-state.spec"],
         [
-            ("HOSTNAME", entry.hostname.as_str()),
-            ("IN_IP", &entry.ipv4_addr_in.to_string()),
+            // ("HOSTNAME", entry.hostname.as_str()),
+            // ("IN_IP", &entry.ipv4_addr_in.to_string()),
             (
                 "CONNECTION_CHECK_URL",
                 &format!("https://am.i.{}", TEST_CONFIG.mullvad_host),

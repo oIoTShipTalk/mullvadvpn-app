@@ -397,56 +397,6 @@ pub fn unreachable_wireguard_tunnel() -> talpid_types::net::wireguard::Connectio
     }
 }
 
-/// Return a filtered version of the daemon's relay list.
-///
-/// * `mullvad_client` - An interface to the Mullvad daemon.
-/// * `critera` - A function used to determine which relays to return.
-pub async fn filter_relays<Filter>(
-    mullvad_client: &mut MullvadProxyClient,
-    criteria: Filter,
-) -> Result<Vec<Relay>, Error>
-where
-    Filter: Fn(&Relay) -> bool,
-{
-    let relay_list: RelayList = mullvad_client
-        .get_relay_locations()
-        .await
-        .map_err(|error| Error::Daemon(format!("Failed to obtain relay list: {}", error)))?;
-
-    Ok(relay_list
-        .relays()
-        .filter(|relay| criteria(relay))
-        .cloned()
-        .collect())
-}
-
-/// Convenience function for constructing a constraint from a given [`Relay`].
-///
-/// # Panics
-///
-/// The relay must have a location set.
-pub fn into_constraint(relay: &Relay) -> Constraint<LocationConstraint> {
-    relay
-        .location
-        .as_ref()
-        .map(
-            |Location {
-                 country_code,
-                 city_code,
-                 ..
-             }| {
-                GeographicLocationConstraint::Hostname(
-                    country_code.to_string(),
-                    city_code.to_string(),
-                    relay.hostname.to_string(),
-                )
-            },
-        )
-        .map(LocationConstraint::Location)
-        .map(Constraint::Only)
-        .expect("relay is missing location")
-}
-
 /// Ping monitoring made easy!
 ///
 /// Continously ping some destination while monitoring to detect diverging
