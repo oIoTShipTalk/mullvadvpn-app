@@ -192,28 +192,16 @@ impl WintunDll {
         Ok(WintunDll {
             handle,
             func_create: unsafe {
-                *((&get_proc_fn(
-                    handle,
-                    CStr::from_bytes_with_nul(b"WintunCreateAdapter\0").unwrap(),
-                )?) as *const _ as *const _)
+                *((&get_proc_fn(handle, c"WintunCreateAdapter")?) as *const _ as *const _)
             },
             func_close: unsafe {
-                *((&get_proc_fn(
-                    handle,
-                    CStr::from_bytes_with_nul(b"WintunCloseAdapter\0").unwrap(),
-                )?) as *const _ as *const _)
+                *((&get_proc_fn(handle, c"WintunCloseAdapter")?) as *const _ as *const _)
             },
             func_get_adapter_luid: unsafe {
-                *((&get_proc_fn(
-                    handle,
-                    CStr::from_bytes_with_nul(b"WintunGetAdapterLUID\0").unwrap(),
-                )?) as *const _ as *const _)
+                *((&get_proc_fn(handle, c"WintunGetAdapterLUID")?) as *const _ as *const _)
             },
             func_set_logger: unsafe {
-                *((&get_proc_fn(
-                    handle,
-                    CStr::from_bytes_with_nul(b"WintunSetLogger\0").unwrap(),
-                )?) as *const _ as *const _)
+                *((&get_proc_fn(handle, c"WintunSetLogger")?) as *const _ as *const _)
             },
         })
     }
