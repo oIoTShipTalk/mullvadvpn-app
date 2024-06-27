@@ -101,11 +101,24 @@ impl AndroidTunProvider {
         Ok(())
     }
 
+    /// Set CUSTOM DNS servers.
+    ///
+    /// TODO: Document better.
+    ///
+    /// TODO: Try to not recreate the tunnel if open. It is a weird side-effect tbh.
+    /// But maybe `self.recreate_tun_if_open` is better than:
+    /// `self.disconnect(shared_values, AfterDisconnect::Reconnect(0))` ..
     pub fn set_dns_servers(&mut self, servers: Option<Vec<IpAddr>>) -> Result<(), Error> {
+        log::debug!("Setting DNS servers: {servers:?}");
+        // Note: If `recreate_tun_if_open` is not called here, then we don't need to check
+        // if the DNS servers really changed.
+        self.custom_dns_servers = servers;
+        /*
         if self.custom_dns_servers != servers {
             self.custom_dns_servers = servers;
             self.recreate_tun_if_open()?;
         }
+        */
 
         Ok(())
     }
@@ -114,8 +127,11 @@ impl AndroidTunProvider {
     /// This will cause any pre-existing tunnel to be recreated if necessary. See
     /// [`AndroidTunProvider::recreate_tun_if_open()`] for details.
     pub fn set_exclude_apps(&mut self, excluded_apps: Vec<String>) -> Result<(), Error> {
+        // Note: If `recreate_tun_if_open` is not called here, then we don't need to check
+        // if the excluded apps really changed.
         if self.excluded_apps != excluded_apps {
             self.excluded_apps = excluded_apps;
+            // TODO: Maybe comment this code out!
             self.recreate_tun_if_open()?;
         }
         Ok(())
@@ -221,6 +237,7 @@ impl AndroidTunProvider {
         }
     }
 
+    // TODO: Document why this is needed.
     fn recreate_tun_if_open(&mut self) -> Result<(), Error> {
         let mut actual_config = self.last_tun_config.clone();
 

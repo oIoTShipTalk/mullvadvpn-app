@@ -200,6 +200,8 @@ pub enum TunnelCommand {
     /// of whether it succeeded.
     AllowEndpoint(AllowedEndpoint, oneshot::Sender<()>),
     /// Set DNS servers to use.
+    ///
+    /// TODO: Figure out why this is an Option<Vec<_>> ?? Why not just Vec<_> ??
     Dns(Option<Vec<IpAddr>>, oneshot::Sender<()>),
     /// Enable or disable the block_when_disconnected feature.
     BlockWhenDisconnected(bool, oneshot::Sender<()>),
@@ -576,35 +578,40 @@ impl SharedTunnelStateValues {
         Ok(())
     }
 
+    /// If DNS servers were updated, `Ok(true)` is returned.
+    /// TODO: Document better
     pub fn set_dns_servers(
         &mut self,
         dns_servers: Option<Vec<IpAddr>>,
     ) -> Result<bool, ErrorStateCause> {
         if self.dns_servers != dns_servers {
             self.dns_servers = dns_servers;
-
             #[cfg(target_os = "android")]
-            {
-                if let Err(error) = self
-                    .tun_provider
-                    .lock()
-                    .unwrap()
-                    .set_dns_servers(self.dns_servers.clone())
-                {
-                    log::error!(
-                        "{}",
-                        error.display_chain_with_msg(
-                            "Failed to restart tunnel after changing DNS servers",
-                        )
-                    );
-                    return Err(ErrorStateCause::StartTunnelError);
-                }
-            }
-
+            self.set_dns_servers_internal(self.dns_servers.clone())?;
             Ok(true)
         } else {
             Ok(false)
         }
+    }
+
+    /// TODO: Document why this function is needed
+    #[cfg(target_os = "android")]
+    fn set_dns_servers_internal(
+        &mut self,
+        dns_servers: Option<Vec<IpAddr>>,
+    ) -> Result<(), ErrorStateCause> {
+        let mut tun_provider = self.tun_provider.lock().unwrap();
+        tun_provider
+            .set_dns_servers(dns_servers)
+            .inspect_err(|error| {
+                log::error!(
+                    "{}",
+                    error.display_chain_with_msg(
+                        "Failed to restart tunnel after changing DNS servers",
+                    )
+                );
+            })
+            .map_err(|_| ErrorStateCause::StartTunnelError)
     }
 
     /// NetworkManager's connectivity check can get hung when DNS requests fail, thus the TSM
@@ -652,6 +659,9 @@ impl SharedTunnelStateValues {
 
     /// Update the set of excluded paths (split tunnel apps) for the tunnel provider.
     /// Returns `Ok(true)` if the tunnel state machine should issue a tunnel reconnect.
+    ///
+    /// TODO: Should `tun_provider.set_excluded_apps` really have the side effect of reconfiguring
+    /// the tunnel?
     #[cfg(target_os = "android")]
     pub fn exclude_paths(&mut self, apps: Vec<String>) -> Result<bool, split_tunnel::Error> {
         self.tun_provider
