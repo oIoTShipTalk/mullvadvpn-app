@@ -212,16 +212,16 @@ function run_tests_for_os {
     local upgrade_package_arg
     if [[ -z "${APP_PACKAGE_TO_UPGRADE_FROM+x}" ]]; then
         echo "'APP_PACKAGE_TO_UPGRADE_FROM' env not set, not testing upgrades"
-        upgrade_package_arg=""
+        upgrade_package_arg=()
     else
-        upgrade_package_arg="--upgrade-package ${APP_PACKAGE_TO_UPGRADE_FROM}"
+        upgrade_package_arg=(--app-package-to-upgrade-from "${APP_PACKAGE_TO_UPGRADE_FROM}")
     fi
     pushd "$TEST_DIR"
         cargo run --bin test-manager \
             run-tests \
             --account "${ACCOUNT_TOKEN:?Error: ACCOUNT_TOKEN not set}" \
             --app-package "${APP_PACKAGE:?Error: APP_PACKAGE not set}" \
-            "$upgrade_package_arg" \
+            "${upgrade_package_arg[@]}" \
             --package-folder "${PACKAGE_FOLDER:?Error: PACKAGE_FOLDER not set}" \
             --vm "$vm" \
             "${TEST_FILTERS:-}" \
