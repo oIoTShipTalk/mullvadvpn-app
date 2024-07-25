@@ -1,5 +1,5 @@
 use crate::config::{Architecture, OsType, PackageType, VmConfig};
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::{Path, PathBuf};
