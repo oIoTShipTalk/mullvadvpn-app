@@ -13,9 +13,8 @@ fi
 
 TEST_OS=$1
 
-PACKAGE_FOLDER="${CACHE_FOLDER}"
-
 source "$SCRIPT_DIR/test-utils.sh"
+PACKAGE_FOLDER="${CACHE_FOLDER}"
 
 echo "**********************************"
 echo "* Version to upgrade from: $LATEST_STABLE_RELEASE"
