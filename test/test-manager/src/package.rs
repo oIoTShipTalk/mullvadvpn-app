@@ -1,17 +1,14 @@
 use crate::config::{Architecture, OsType, PackageType, VmConfig};
-use anyhow::{Context, Result};
+use anyhow::{bail, Context, Result};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use std::path::{Path, PathBuf};
-
-static VERSION_REGEX: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"\d{4}\.\d+(-beta\d+)?(-dev)?-([0-9a-z])+").unwrap());
 
 #[derive(Debug, Clone)]
 pub struct Manifest {
     pub app_package_path: PathBuf,
     pub app_package_to_upgrade_from_path: Option<PathBuf>,
-    pub ui_e2e_tests_path: Option<PathBuf>,
+    pub gui_package_path: Option<PathBuf>,
 }
 
 /// Obtain app packages and their filenames
@@ -22,6 +19,7 @@ pub fn get_app_manifest(
     config: &VmConfig,
     app_package: String,
     app_package_to_upgrade_from: Option<String>,
+    gui_package: Option<String>,
     package_folder: Option<PathBuf>,
 ) -> Result<Manifest> {
     let package_type = (config.os_type, config.package_type, config.architecture);
@@ -34,21 +32,52 @@ pub fn get_app_manifest(
         .transpose()?;
     log::info!("App package to upgrade from: {app_package_to_upgrade_from_path:?}");
 
-    let capture = VERSION_REGEX
-        .captures(app_package_path.to_str().unwrap())
-        .with_context(|| format!("Cannot parse version: {}", app_package_path.display()))?
-        .get(0)
-        .map(|c| c.as_str())
-        .expect("Could not parse version from package name: {app_package}");
+    // Automatically try to find the UI e2e tests based on the app package
 
-    let ui_e2e_tests_path = find_app(capture, true, package_type, package_folder.as_ref()).ok();
-    log::info!("GUI e2e test binary: {ui_e2e_tests_path:?}");
+    // Search the specified package folder, or same folder as the app package if missing
+    let ui_e2e_package_folder = package_folder.unwrap_or(
+        app_package_path
+            .parent()
+            .expect("Path to app package should have parent")
+            .into(),
+    );
+
+    let app_version = get_version_from_path(&app_package_path)?;
+    let gui_package_path = find_app(
+        match &gui_package {
+            Some(gui_package) => gui_package,
+            None => &app_version,
+        },
+        true,
+        package_type,
+        Some(&ui_e2e_package_folder),
+    );
+
+    // Don't allow the UI/e2e test binary to missing if it's flag was specified
+    let gui_package_path = match gui_package {
+        Some(_) => Some(gui_package_path.context("Could not find specified UI/e2e test binary")?),
+        None => gui_package_path.ok(),
+    };
+
+    log::info!("GUI e2e test binary: {gui_package_path:?}");
 
     Ok(Manifest {
         app_package_path,
         app_package_to_upgrade_from_path,
-        ui_e2e_tests_path,
+        gui_package_path,
     })
+}
+
+fn get_version_from_path(app_package_path: &Path) -> Result<String, anyhow::Error> {
+    static VERSION_REGEX: Lazy<Regex> =
+        Lazy::new(|| Regex::new(r"\d{4}\.\d+((-beta\d+)?(-dev)?-([0-9a-z])+)?").unwrap());
+
+    VERSION_REGEX
+        .captures(app_package_path.to_str().unwrap())
+        .with_context(|| format!("Cannot parse version: {}", app_package_path.display()))?
+        .get(0)
+        .map(|c| c.as_str().to_owned())
+        .context("Could not parse version from package name: {app_package}")
 }
 
 fn find_app(
@@ -124,5 +153,29 @@ fn get_os_name(package_type: (OsType, Option<PackageType>, Option<Architecture>)
         OsType::Windows => "windows",
         OsType::Macos => "apple",
         OsType::Linux => "linux",
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_version_regex() {
+        let path = Path::new("../some/path/MullvadVPN-2024.4-beta1-dev-f7df8e_amd64.deb");
+        let capture = get_version_from_path(path).unwrap();
+        assert_eq!(capture, "2024.4-beta1-dev-f7df8e");
+
+        let path = Path::new("../some/path/MullvadVPN-2024.4-beta1-f7df8e_amd64.deb");
+        let capture = get_version_from_path(path).unwrap();
+        assert_eq!(capture, "2024.4-beta1-f7df8e");
+
+        let path = Path::new("../some/path/MullvadVPN-2024.4-dev-f7df8e_amd64.deb");
+        let capture = get_version_from_path(path).unwrap();
+        assert_eq!(capture, "2024.4-dev-f7df8e");
+
+        let path = Path::new("../some/path/MullvadVPN-2024.3_amd64.deb");
+        let capture = get_version_from_path(path).unwrap();
+        assert_eq!(capture, "2024.3");
     }
 }
