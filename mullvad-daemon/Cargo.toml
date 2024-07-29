@@ -44,6 +44,7 @@ talpid-types = { path = "../talpid-types" }
 clap = { workspace = true }
 log-panics = "2.0.0"
 mullvad-management-interface = { path = "../mullvad-management-interface" }
+tracing-appender = "0.2.3"
 
 [dev-dependencies]
 talpid-time = { path = "../talpid-time", features = ["test"] }
