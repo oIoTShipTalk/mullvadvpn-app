@@ -305,6 +305,24 @@ impl ServiceClient {
         Ok(())
     }
 
+    /// Restart the Mullvad daemon with default environment variables..
+    ///
+    /// # Returns
+    /// - `Result::Ok` if the daemon was successfully restarted.
+    /// - `Result::Err(Error)` if the daemon could not be restarted and is thus no longer running.
+    pub async fn reset_daemon_environment(&self) -> Result<(), Error> {
+        let mut ctx = tarpc::context::current();
+        ctx.deadline = SystemTime::now().checked_add(LOG_LEVEL_TIMEOUT).unwrap();
+        self.client
+            .set_daemon_environment(ctx, Default::default())
+            .await??;
+
+        self.mullvad_daemon_wait_for_state(|state| state == ServiceStatus::Running)
+            .await?;
+
+        Ok(())
+    }
+
     /// Set environment variables specified by `env` and restart the Mullvad daemon.
     ///
     /// # Returns
