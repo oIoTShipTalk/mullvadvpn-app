@@ -65,7 +65,7 @@ use mullvad_types::{
     wireguard::{PublicKey, QuantumResistantState, RotationInterval},
 };
 use relay_list::{RelayListUpdater, RelayListUpdaterHandle, RELAYS_FILENAME};
-use settings::SettingsPersister;
+use settings::{SettingsManager, SettingsPersister};
 #[cfg(any(windows, target_os = "android", target_os = "macos"))]
 use std::collections::HashSet;
 #[cfg(target_os = "android")]
@@ -400,8 +400,9 @@ pub(crate) enum InternalDaemonEvent {
     DeviceMigrationEvent(Result<PrivateAccountAndDevice, device::Error>),
     /// A geographical location has has been received from am.i.mullvad.net
     LocationEvent(LocationEventData),
-    /// A generic event for when any settings change.
-    SettingsChanged,
+    /// A generic event for when any settings change (from old -> new).
+    /// The channel indicates that handling any changes has completed.
+    SettingsChanged(oneshot::Sender<()>, Settings, Settings),
     /// The split tunnel paths or state were updated.
     #[cfg(any(windows, target_os = "android", target_os = "macos"))]
     ExcludedPathsEvent(ExcludedPathsUpdate, oneshot::Sender<Result<(), Error>>),
@@ -443,6 +444,12 @@ impl From<(AccessMethodEvent, oneshot::Sender<()>)> for InternalDaemonEvent {
             event: event.0,
             endpoint_active_tx: event.1,
         }
+    }
+}
+
+impl From<(settings::ChangeNotification, oneshot::Sender<()>)> for InternalDaemonEvent {
+    fn from(event: (settings::ChangeNotification, oneshot::Sender<()>)) -> Self {
+        InternalDaemonEvent::SettingsChanged(event.1, event.0.old_settings, event.0.new_settings)
     }
 }
 
@@ -563,7 +570,7 @@ pub struct Daemon {
     reconnection_job: Option<AbortHandle>,
     management_interface: ManagementInterfaceServer,
     migration_complete: migrations::MigrationComplete,
-    settings: SettingsPersister,
+    settings: SettingsManager,
     account_history: account_history::AccountHistory,
     device_checker: device::TunnelStateChangeHandler,
     account_manager: device::AccountManagerHandle,
@@ -624,32 +631,22 @@ impl Daemon {
                 None
             });
 
-        let settings_event_listener = management_interface.notifier().clone();
-        let mut settings = SettingsPersister::load(&settings_dir).await;
-        settings.register_change_listener(move |settings| {
-            // Notify management interface server of changes to the settings
-            settings_event_listener.notify_settings(settings.to_owned());
-        });
+        let settings = SettingsManager::new(
+            SettingsPersister::load(&settings_dir).await,
+            internal_event_tx.to_specialized_sender(),
+        );
 
-        let initial_selector_config = new_selector_config(&settings);
+        let initial_selector_config = new_selector_config(settings.as_settings());
         let relay_selector = RelaySelector::new(
             initial_selector_config,
             resource_dir.join(RELAYS_FILENAME),
             cache_dir.join(RELAYS_FILENAME),
         );
 
-        let settings_relay_selector = relay_selector.clone();
-        settings.register_change_listener(move |settings| {
-            // Notify relay selector of changes to the settings/selector config
-            settings_relay_selector
-                .clone()
-                .set_config(new_selector_config(settings));
-        });
-
         let (access_mode_handler, access_mode_provider) = api::AccessModeSelector::spawn(
             cache_dir.clone(),
             relay_selector.clone(),
-            settings.api_access_methods.clone(),
+            settings.as_settings().api_access_methods.clone(),
             internal_event_tx.to_specialized_sender(),
             api_runtime.address_cache().clone(),
         )
@@ -663,15 +660,6 @@ impl Daemon {
             api_runtime.address_cache().clone(),
             api_handle.clone(),
         ));
-
-        let access_method_handle = access_mode_handler.clone();
-        settings.register_change_listener(move |settings| {
-            let handle = access_method_handle.clone();
-            let new_access_methods = settings.api_access_methods.clone();
-            tokio::spawn(async move {
-                let _ = handle.update_access_methods(new_access_methods).await;
-            });
-        });
 
         let migration_complete = if let Some(migration_data) = migration_data {
             migrations::migrate_device(
@@ -687,6 +675,7 @@ impl Daemon {
             api_handle.clone(),
             &settings_dir,
             settings
+                .as_settings()
                 .tunnel_options
                 .wireguard
                 .rotation_interval
@@ -703,7 +692,7 @@ impl Daemon {
         .await
         .map_err(Error::LoadAccountHistory)?;
 
-        let target_state = if settings.auto_connect {
+        let target_state = if settings.as_settings().auto_connect {
             log::info!("Automatically connecting since auto-connect is turned on");
             PersistentTargetState::force(&cache_dir, TargetState::Secured).await
         } else {
@@ -726,35 +715,19 @@ impl Daemon {
         let parameters_generator = tunnel::ParametersGenerator::new(
             account_manager.clone(),
             relay_selector.clone(),
-            settings.tunnel_options.clone(),
+            settings.as_settings().tunnel_options.clone(),
         );
-
-        let param_gen = parameters_generator.clone();
-        let (param_gen_tx, mut param_gen_rx) = mpsc::unbounded();
-        tokio::spawn(async move {
-            while let Some(tunnel_options) = param_gen_rx.next().await {
-                param_gen.set_tunnel_options(&tunnel_options).await;
-            }
-        });
-        settings.register_change_listener(move |settings| {
-            let _ = param_gen_tx.unbounded_send(settings.tunnel_options.to_owned());
-        });
-
-        // Register a listener for generic settings changes.
-        // This is useful for example for updating feature indicators when the settings change.
-        let settings_changed_event_sender = internal_event_tx.clone();
-        settings.register_change_listener(move |_settings| {
-            let _ = settings_changed_event_sender.send(InternalDaemonEvent::SettingsChanged);
-        });
 
         let (offline_state_tx, offline_state_rx) = mpsc::unbounded();
         #[cfg(target_os = "windows")]
         let (volume_update_tx, volume_update_rx) = mpsc::unbounded();
         let tunnel_state_machine_handle = tunnel_state_machine::spawn(
             tunnel_state_machine::InitialTunnelState {
-                allow_lan: settings.allow_lan,
-                block_when_disconnected: settings.block_when_disconnected,
-                dns_servers: dns::addresses_from_options(&settings.tunnel_options.dns_options),
+                allow_lan: settings.as_settings().allow_lan,
+                block_when_disconnected: settings.as_settings().block_when_disconnected,
+                dns_servers: dns::addresses_from_options(
+                    &settings.as_settings().tunnel_options.dns_options,
+                ),
                 allowed_endpoint: access_mode_handler
                     .get_current()
                     .await
@@ -801,7 +774,7 @@ impl Daemon {
             api_availability.clone(),
             cache_dir.clone(),
             internal_event_tx.to_specialized_sender(),
-            settings.show_beta_releases,
+            settings.as_settings().show_beta_releases,
         )
         .await;
 
@@ -816,7 +789,7 @@ impl Daemon {
         let daemon = Daemon {
             tunnel_state: TunnelState::Disconnected {
                 location: None,
-                locked_down: settings.block_when_disconnected,
+                locked_down: settings.as_settings().block_when_disconnected,
             },
             target_state,
             #[cfg(target_os = "linux")]
@@ -940,8 +913,8 @@ impl Daemon {
             } => self.handle_access_method_event(event, endpoint_active_tx),
             DeviceMigrationEvent(event) => self.handle_device_migration_event(event),
             LocationEvent(location_data) => self.handle_location_event(location_data),
-            SettingsChanged => {
-                self.handle_feature_indicator_event();
+            SettingsChanged(complete_tx, old, new) => {
+                self.handle_settings_change(complete_tx, old, new).await;
             }
             #[cfg(any(windows, target_os = "android", target_os = "macos"))]
             ExcludedPathsEvent(update, tx) => self.handle_new_excluded_paths(update, tx).await,
@@ -1038,14 +1011,16 @@ impl Daemon {
         // Always abort any ongoing request when entering a new tunnel state
         self.location_handler.abort_current_request();
 
+        let settings = self.settings.as_settings();
+
         // Whether or not to poll for an IPv6 exit IP
         let use_ipv6 = match &self.tunnel_state {
             // If connected, refer to the tunnel setting
-            TunnelState::Connected { .. } => self.settings.tunnel_options.generic.enable_ipv6,
+            TunnelState::Connected { .. } => settings.tunnel_options.generic.enable_ipv6,
             // If not connected, we have to guess whether the users local connection supports IPv6.
             // The only thing we have to go on is the wireguard setting.
             TunnelState::Disconnected { .. } => {
-                if let RelaySettings::Normal(relay_constraints) = &self.settings.relay_settings {
+                if let RelaySettings::Normal(relay_constraints) = &settings.relay_settings {
                     // Note that `Constraint::Any` corresponds to just IPv4
                     matches!(
                         relay_constraints.wireguard_constraints.ip_version,
@@ -1098,8 +1073,126 @@ impl Daemon {
             .notify_new_state(self.tunnel_state.clone());
     }
 
+    async fn handle_settings_change(
+        &mut self,
+        complete_tx: oneshot::Sender<()>,
+        old: Settings,
+        new: Settings,
+    ) {
+        // Notify tunnel parameters generator of changes to tunnel options
+        self.parameters_generator
+            .set_tunnel_options(&new.tunnel_options)
+            .await;
+        // Notify relay selector of changes to the settings/selector config
+        self.relay_selector.set_config(new_selector_config(&new));
+
+        self.handle_feature_indicator_change();
+
+        if new.bridge_settings != old.bridge_settings {
+            if let Err(error) = self.access_mode_handler.rotate().await {
+                log::error!("Failed to rotate API endpoint: {error}");
+            }
+        }
+
+        if old.show_beta_releases != new.show_beta_releases {
+            self.version_updater_handle
+                .set_show_beta_releases(new.show_beta_releases)
+                .await;
+        }
+
+        if Self::settings_change_needs_reconnect(&old, &new) {
+            self.reconnect_tunnel();
+        }
+
+        self.management_interface
+            .notifier()
+            .notify_settings(new.clone());
+
+        let access_mode_handler = self.access_mode_handler.clone();
+        let account_manager = self.account_manager.clone();
+
+        let pending_tunnel_commands = self.sync_tunnel_state(&old, &new);
+
+        tokio::spawn(async move {
+            let _ = access_mode_handler
+                .update_access_methods(new.api_access_methods)
+                .await;
+
+            let rotation_ivl = new
+                .tunnel_options
+                .wireguard
+                .rotation_interval
+                .unwrap_or_default();
+            if let Err(error) = account_manager.set_rotation_interval(rotation_ivl).await {
+                log::error!(
+                    "{}",
+                    error.display_chain_with_msg("Failed to set rotation interval")
+                );
+            }
+
+            pending_tunnel_commands.await;
+
+            let _ = complete_tx.send(());
+        });
+    }
+
+    /// Return a future that resolves when the tunnel state machine has been updated according
+    /// to changed settings
+    fn sync_tunnel_state(&self, old: &Settings, new: &Settings) -> impl Future<Output = ()> {
+        let mut pending_tunnel_commands = vec![];
+
+        if new.tunnel_options.dns_options != old.tunnel_options.dns_options {
+            let addrs = dns::addresses_from_options(&new.tunnel_options.dns_options);
+            let (tx, rx) = oneshot::channel();
+            self.send_tunnel_command(TunnelCommand::Dns(addrs, tx));
+
+            pending_tunnel_commands.push(rx);
+        }
+
+        if new.allow_lan != old.allow_lan {
+            let (tx, rx) = oneshot::channel();
+            self.send_tunnel_command(TunnelCommand::AllowLan(new.allow_lan, tx));
+
+            pending_tunnel_commands.push(rx);
+        }
+
+        if new.block_when_disconnected != old.block_when_disconnected {
+            let (tx, rx) = oneshot::channel();
+            self.send_tunnel_command(TunnelCommand::BlockWhenDisconnected(
+                new.block_when_disconnected,
+                tx,
+            ));
+
+            pending_tunnel_commands.push(rx);
+        }
+
+        async move {
+            futures::future::join_all(pending_tunnel_commands).await;
+        }
+    }
+
+    fn settings_change_needs_reconnect(old: &Settings, new: &Settings) -> bool {
+        let mut need_reconnect = false;
+
+        need_reconnect |= old.bridge_state != new.bridge_state;
+        need_reconnect |= old.bridge_settings != new.bridge_settings;
+
+        need_reconnect |= old.relay_settings != new.relay_settings;
+        need_reconnect |= old.relay_overrides != new.relay_overrides;
+
+        need_reconnect |= old.tunnel_options.generic != new.tunnel_options.generic;
+        need_reconnect |= old.tunnel_options.wireguard != new.tunnel_options.wireguard;
+        need_reconnect |= old.tunnel_options.openvpn != new.tunnel_options.openvpn;
+
+        // NOTE: DNS changes should not trigger reconnect
+
+        need_reconnect |= custom_list::change_needs_reconnect(old, new);
+
+        need_reconnect
+    }
+
     /// Update the set of feature indicators.
-    fn handle_feature_indicator_event(&mut self) {
+    fn handle_feature_indicator_change(&mut self) {
         // Note: If the current tunnel state carries information about active feature indicators,
         // we should care to update the known set of feature indicators (i.e. in the connecting /
         // connected state). Otherwise, we can just skip broadcasting a new tunnel state.
@@ -1817,6 +1910,8 @@ impl Daemon {
                 vec![]
             };
 
+            // FIXME: handle as settings change event
+
             let (result_tx, result_rx) = oneshot::channel();
             self.send_tunnel_command(TunnelCommand::SetExcludedApps(result_tx, tunnel_list));
             let daemon_tx = self.tx.clone();
@@ -1873,6 +1968,8 @@ impl Daemon {
                 .collect(),
             _ => vec![],
         };
+
+        // FIXME: handle as settings change event
 
         let (result_tx, result_rx) = oneshot::channel();
         self.send_tunnel_command(TunnelCommand::SetExcludedApps(result_tx, tunnel_list));
@@ -1982,23 +2079,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         update: RelaySettings,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.set_relay_settings(update))
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_relay_settings response");
-                if settings_changed {
-                    log::info!("Initiating tunnel restart because the relay settings changed");
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_relay_settings response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_relay_settings response");
     }
 
     async fn on_set_allow_lan(&mut self, tx: ResponseTx<(), settings::Error>, allow_lan: bool) {
@@ -2007,17 +2092,13 @@ impl Daemon {
             .update(move |settings| settings.allow_lan = allow_lan)
             .await
         {
-            Ok(settings_changed) => {
-                if settings_changed {
-                    self.send_tunnel_command(TunnelCommand::AllowLan(
-                        allow_lan,
-                        oneshot_map(tx, |tx, ()| {
-                            Self::oneshot_send(tx, Ok(()), "set_allow_lan response");
-                        }),
-                    ));
-                } else {
+            Ok(notifiers_complete) => {
+                tokio::spawn(async move {
+                    // Wait for tunnel state to be updated
+                    notifiers_complete.await;
+
                     Self::oneshot_send(tx, Ok(()), "set_allow_lan response");
-                }
+                });
             }
             Err(e) => {
                 log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
@@ -2031,23 +2112,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         enabled: bool,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.show_beta_releases = enabled)
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_show_beta_releases response");
-                if settings_changed {
-                    let mut handle = self.version_updater_handle.clone();
-                    handle.set_show_beta_releases(enabled).await;
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_show_beta_releases response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_show_beta_releases response");
     }
 
     async fn on_set_block_when_disconnected(
@@ -2060,20 +2129,15 @@ impl Daemon {
             .update(move |settings| settings.block_when_disconnected = block_when_disconnected)
             .await
         {
-            Ok(settings_changed) => {
-                if settings_changed {
-                    self.send_tunnel_command(TunnelCommand::BlockWhenDisconnected(
-                        block_when_disconnected,
-                        oneshot_map(tx, |tx, ()| {
-                            Self::oneshot_send(tx, Ok(()), "set_block_when_disconnected response");
-                        }),
-                    ));
-                } else {
+            Ok(notifiers_complete) => {
+                tokio::spawn(async move {
+                    // Wait for tunnel state to be updated
+                    notifiers_complete.await;
+
                     Self::oneshot_send(tx, Ok(()), "set_block_when_disconnected response");
-                }
+                });
             }
             Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
                 Self::oneshot_send(tx, Err(e), "set_block_when_disconnected response");
             }
         }
@@ -2084,19 +2148,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         auto_connect: bool,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.auto_connect = auto_connect)
-            .await
-        {
-            Ok(_settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set auto-connect response");
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set auto-connect response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set auto-connect response");
     }
 
     async fn on_set_openvpn_mssfix(
@@ -2104,25 +2160,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         mssfix: Option<u16>,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.tunnel_options.openvpn.mssfix = mssfix)
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_openvpn_mssfix response");
-                if settings_changed && self.get_target_tunnel_type() == Some(TunnelType::OpenVpn) {
-                    log::info!(
-                        "Initiating tunnel restart because the OpenVPN mssfix setting changed"
-                    );
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_openvpn_mssfix response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_openvpn_mssfix response");
     }
 
     async fn on_set_bridge_settings(
@@ -2140,32 +2182,16 @@ impl Daemon {
             return;
         }
 
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.bridge_settings = new_settings)
-            .await
-        {
-            Ok(settings_changes) => {
-                if settings_changes {
-                    let access_mode_handler = self.access_mode_handler.clone();
-                    tokio::spawn(async move {
-                        if let Err(error) = access_mode_handler.rotate().await {
-                            log::error!("Failed to rotate API endpoint: {error}");
-                        }
-                    });
-                    self.reconnect_tunnel();
-                };
-                Self::oneshot_send(tx, Ok(()), "set_bridge_settings");
-            }
+            .await;
 
-            Err(e) => {
-                log::error!(
-                    "{}",
-                    e.display_chain_with_msg("Failed to set new bridge settings")
-                );
-                Self::oneshot_send(tx, Err(Error::SettingsError(e)), "set_bridge_settings");
-            }
-        }
+        Self::oneshot_send(
+            tx,
+            result.map(|_| ()).map_err(Error::SettingsError),
+            "set_bridge_settings response",
+        );
     }
 
     async fn on_set_obfuscation_settings(
@@ -2173,25 +2199,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         new_settings: ObfuscationSettings,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.obfuscation_settings = new_settings)
-            .await
-        {
-            Ok(settings_changed) => {
-                if settings_changed {
-                    self.reconnect_tunnel();
-                }
-                Self::oneshot_send(tx, Ok(()), "set_obfuscation_settings");
-            }
-            Err(err) => {
-                log::error!(
-                    "{}",
-                    err.display_chain_with_msg("Failed to set obfuscation settings")
-                );
-                Self::oneshot_send(tx, Err(err), "set_obfuscation_settings");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_obfuscation_settings");
     }
 
     async fn on_set_bridge_state(
@@ -2199,47 +2211,19 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         bridge_state: BridgeState,
     ) {
-        let result = match self
+        let result = self
             .settings
             .update(move |settings| settings.bridge_state = bridge_state)
-            .await
-        {
-            Ok(settings_changed) => {
-                if settings_changed {
-                    log::info!("Initiating tunnel restart because bridge state changed");
-                    self.reconnect_tunnel();
-                }
-                Ok(())
-            }
-            Err(error) => {
-                log::error!(
-                    "{}",
-                    error.display_chain_with_msg("Failed to set new bridge state")
-                );
-                Err(error)
-            }
-        };
-        Self::oneshot_send(tx, result, "on_set_bridge_state response");
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_bridge_state response");
     }
 
     async fn on_set_enable_ipv6(&mut self, tx: ResponseTx<(), settings::Error>, enable_ipv6: bool) {
-        match self
+        let result = self
             .settings
             .update(|settings| settings.tunnel_options.generic.enable_ipv6 = enable_ipv6)
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_enable_ipv6 response");
-                if settings_changed {
-                    log::info!("Initiating tunnel restart because the enable IPv6 setting changed");
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_enable_ipv6 response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_enable_ipv6 response");
     }
 
     async fn on_set_quantum_resistant_tunnel(
@@ -2247,26 +2231,17 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         quantum_resistant: QuantumResistantState,
     ) {
-        match self
+        let result = self
             .settings
             .update(|settings| {
                 settings.tunnel_options.wireguard.quantum_resistant = quantum_resistant
             })
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_quantum_resistant_tunnel response");
-                if settings_changed && self.get_target_tunnel_type() == Some(TunnelType::Wireguard)
-                {
-                    log::info!("Reconnecting because the PQ safety setting changed");
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_quantum_resistant_tunnel response");
-            }
-        }
+            .await;
+        Self::oneshot_send(
+            tx,
+            result.map(|_| ()),
+            "set_quantum_resistant_tunnel response",
+        );
     }
 
     #[cfg(daita)]
@@ -2275,23 +2250,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         daita_settings: DaitaSettings,
     ) {
-        match self
+        let result = self
             .settings
             .update(|settings| settings.tunnel_options.wireguard.daita = daita_settings)
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_daita_settings response");
-                if settings_changed && self.get_target_tunnel_type() != Some(TunnelType::OpenVpn) {
-                    log::info!("Reconnecting because DAITA settings changed");
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_daita_settings response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_daita_settings response");
     }
 
     async fn on_set_dns_options(
@@ -2304,25 +2267,14 @@ impl Daemon {
             .update(move |settings| settings.tunnel_options.dns_options = dns_options)
             .await
         {
-            Ok(settings_changed) => {
-                if settings_changed {
-                    let settings = self.settings.to_settings();
-                    let resolvers =
-                        dns::addresses_from_options(&settings.tunnel_options.dns_options);
-                    self.send_tunnel_command(TunnelCommand::Dns(
-                        resolvers,
-                        oneshot_map(tx, |tx, ()| {
-                            Self::oneshot_send(tx, Ok(()), "set_dns_options response");
-                        }),
-                    ));
-                } else {
+            Ok(notifiers_complete) => {
+                tokio::spawn(async move {
+                    // wait for tunnel state to be updated
+                    notifiers_complete.await;
                     Self::oneshot_send(tx, Ok(()), "set_dns_options response");
-                }
+                });
             }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_dns_options response");
-            }
+            Err(e) => Self::oneshot_send(tx, Err(e), "set_dns_options response"),
         }
     }
 
@@ -2331,41 +2283,19 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         relay_override: RelayOverride,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.set_relay_override(relay_override))
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_relay_override response");
-                if settings_changed {
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_relay_override response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_relay_override response");
     }
 
     async fn on_clear_all_relay_overrides(&mut self, tx: ResponseTx<(), settings::Error>) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.relay_overrides.clear())
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "clear_all_relay_overrides response");
-                if settings_changed {
-                    self.reconnect_tunnel();
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "clear_all_relay_overrides response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "clear_all_relay_overrides response");
     }
 
     async fn on_set_wireguard_mtu(
@@ -2373,27 +2303,11 @@ impl Daemon {
         tx: ResponseTx<(), settings::Error>,
         mtu: Option<u16>,
     ) {
-        match self
+        let result = self
             .settings
             .update(move |settings| settings.tunnel_options.wireguard.mtu = mtu)
-            .await
-        {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_wireguard_mtu response");
-                if settings_changed {
-                    if let Some(TunnelType::Wireguard) = self.get_connected_tunnel_type() {
-                        log::info!(
-                            "Initiating tunnel restart because the WireGuard MTU setting changed"
-                        );
-                        self.reconnect_tunnel();
-                    }
-                }
-            }
-            Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
-                Self::oneshot_send(tx, Err(e), "set_wireguard_mtu response");
-            }
-        }
+            .await;
+        Self::oneshot_send(tx, result.map(|_| ()), "set_wireguard_mtu response");
     }
 
     async fn on_set_wireguard_rotation_interval(
@@ -2406,23 +2320,15 @@ impl Daemon {
             .update(move |settings| settings.tunnel_options.wireguard.rotation_interval = interval)
             .await
         {
-            Ok(settings_changed) => {
-                Self::oneshot_send(tx, Ok(()), "set_wireguard_rotation_interval response");
-                if settings_changed {
-                    if let Err(error) = self
-                        .account_manager
-                        .set_rotation_interval(interval.unwrap_or_default())
-                        .await
-                    {
-                        log::error!(
-                            "{}",
-                            error.display_chain_with_msg("Failed to update rotation interval")
-                        );
-                    }
-                }
+            Ok(notifiers_complete) => {
+                tokio::spawn(async move {
+                    // wait for rotation interval to be updated
+                    notifiers_complete.await;
+
+                    Self::oneshot_send(tx, Ok(()), "set_wireguard_rotation_interval response");
+                });
             }
             Err(e) => {
-                log::error!("{}", e.display_chain_with_msg("Unable to save settings"));
                 Self::oneshot_send(tx, Err(e), "set_wireguard_rotation_interval response");
             }
         }
@@ -2636,7 +2542,7 @@ impl Daemon {
 
     async fn on_reset_settings(&mut self, tx: ResponseTx<(), settings::Error>) {
         let result = self.settings.reset().await;
-        Self::oneshot_send(tx, result, "reset_settings response");
+        Self::oneshot_send(tx, result.map(|_| ()), "reset_settings response");
 
         // TODO: All of the functions below should probably be handled by settings observers
         //       whenever settings are updated. For instance, changing "allow_lan" should probably
@@ -2647,43 +2553,6 @@ impl Daemon {
             let (tx, _rx) = oneshot::channel();
             self.send_tunnel_command(TunnelCommand::SetExcludedApps(tx, vec![]));
         }
-
-        let (tx, _rx) = oneshot::channel();
-        self.send_tunnel_command(TunnelCommand::BlockWhenDisconnected(
-            self.settings.block_when_disconnected,
-            tx,
-        ));
-
-        let (tx, _rx) = oneshot::channel();
-        self.send_tunnel_command(TunnelCommand::AllowLan(self.settings.allow_lan, tx));
-
-        let (tx, _rx) = oneshot::channel();
-        let dns = dns::addresses_from_options(&self.settings.tunnel_options.dns_options);
-        self.send_tunnel_command(TunnelCommand::Dns(dns, tx));
-
-        self.version_updater_handle
-            .set_show_beta_releases(self.settings.show_beta_releases)
-            .await;
-        let access_mode_handler = self.access_mode_handler.clone();
-        tokio::spawn(async move {
-            if let Err(error) = access_mode_handler.rotate().await {
-                log::error!("Failed to rotate API endpoint: {error}");
-            }
-        });
-
-        let interval = self.settings.tunnel_options.wireguard.rotation_interval;
-        let account_manager = self.account_manager.clone();
-        tokio::spawn(async move {
-            if let Err(error) = account_manager
-                .set_rotation_interval(interval.unwrap_or_default())
-                .await
-            {
-                log::error!(
-                    "{}",
-                    error.display_chain_with_msg("Failed to update rotation interval")
-                );
-            }
-        });
 
         self.reconnect_tunnel();
     }
@@ -2698,7 +2567,8 @@ impl Daemon {
         // Block all traffic before shutting down to ensure that no traffic can leak on boot or
         // shutdown.
         if !user_init_shutdown
-            && (*self.target_state == TargetState::Secured || self.settings.auto_connect)
+            && (*self.target_state == TargetState::Secured
+                || self.settings.as_settings().auto_connect)
         {
             log::debug!("Blocking firewall during shutdown");
             let (tx, _rx) = oneshot::channel();
@@ -2784,7 +2654,7 @@ impl Daemon {
     }
 
     fn on_export_json_settings(&mut self, tx: ResponseTx<String, settings::patch::Error>) {
-        let result = settings::patch::export_settings(&self.settings);
+        let result = settings::patch::export_settings(self.settings.as_settings());
         Self::oneshot_send(tx, result, "export_json_settings response");
     }
 
@@ -2827,13 +2697,6 @@ impl Daemon {
     fn reconnect_tunnel(&mut self) {
         if *self.target_state == TargetState::Secured {
             self.connect_tunnel();
-        }
-    }
-
-    const fn get_connected_tunnel_type(&self) -> Option<TunnelType> {
-        match self.tunnel_state.get_tunnel_type() {
-            Some(tunnel_type) if self.tunnel_state.is_connected() => Some(tunnel_type),
-            Some(_) | None => None,
         }
     }
 
@@ -2968,22 +2831,6 @@ fn new_selector_config(settings: &Settings) -> SelectorConfig {
         custom_lists: settings.custom_lists.clone(),
         relay_overrides: settings.relay_overrides.clone(),
     }
-}
-
-/// Consume a oneshot sender of `T1` and return a sender that takes a different type `T2`.
-/// `forwarder` should map `T1` back to `T2` and send the result back to the original receiver.
-fn oneshot_map<T1: Send + 'static, T2: Send + 'static>(
-    tx: oneshot::Sender<T1>,
-    forwarder: impl Fn(oneshot::Sender<T1>, T2) + Send + 'static,
-) -> oneshot::Sender<T2> {
-    let (new_tx, new_rx) = oneshot::channel();
-    tokio::spawn(async move {
-        match new_rx.await {
-            Ok(result) => forwarder(tx, result),
-            Err(oneshot::Canceled) => (),
-        }
-    });
-    new_tx
 }
 
 /// Remove any old RPC socket (if it exists).

@@ -42,7 +42,8 @@ impl Daemon {
     ) -> Result<access_method::Id, Error> {
         let access_method_setting = AccessMethodSetting::new(name, enabled, access_method);
         let id = access_method_setting.get_id();
-        self.settings
+        let _ = self
+            .settings
             .update(|settings| settings.api_access_methods.append(access_method_setting))
             .await?;
         Ok(id)
@@ -53,7 +54,8 @@ impl Daemon {
         &mut self,
         access_method: access_method::Id,
     ) -> Result<(), Error> {
-        self.settings
+        let _ = self
+            .settings
             .try_update(|settings| -> Result<(), Error> {
                 settings.api_access_methods.remove(&access_method)?;
                 Ok(())
@@ -79,7 +81,8 @@ impl Daemon {
         &mut self,
         access_method: access_method::Id,
     ) -> Result<(), Error> {
-        self.settings
+        let _ = self
+            .settings
             .update(|settings| {
                 settings.api_access_methods.update(
                     |setting| setting.get_id() == access_method,
@@ -98,6 +101,7 @@ impl Daemon {
         access_method: access_method::Id,
     ) -> Result<AccessMethodSetting, Error> {
         self.settings
+            .as_settings()
             .api_access_methods
             .iter()
             .find(|setting| setting.get_id() == access_method)
@@ -112,7 +116,8 @@ impl Daemon {
         &mut self,
         access_method_update: AccessMethodSetting,
     ) -> Result<(), Error> {
-        self.settings
+        let _ = self
+            .settings
             .update(|settings: &mut Settings| {
                 let target = access_method_update.get_id();
                 settings.api_access_methods.update(
@@ -127,7 +132,8 @@ impl Daemon {
 
     /// Remove all custom [`AccessMethodSetting`].
     pub async fn clear_custom_api_access_methods(&mut self) -> Result<(), Error> {
-        self.settings
+        let _ = self
+            .settings
             .update(|settings: &mut Settings| {
                 settings.api_access_methods.clear_custom();
             })

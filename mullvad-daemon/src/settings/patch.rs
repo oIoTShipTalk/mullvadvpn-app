@@ -15,7 +15,7 @@
 //! This implementation must be kept in sync with the
 //! [spec](../../../docs/settings-patch-format.md).
 
-use super::SettingsPersister;
+use super::SettingsManager;
 use mullvad_types::settings::Settings;
 
 #[derive(thiserror::Error, Debug)]
@@ -168,12 +168,12 @@ fn export_settings_inner(settings: &Settings) -> Result<serde_json::Value, Error
 /// Update the settings with the supplied patch. Only settings specified in `PERMITTED_SUBKEYS` can
 /// be updated. All other changes are rejected
 pub async fn merge_validate_patch(
-    settings: &mut SettingsPersister,
+    settings: &mut SettingsManager,
     json_patch: &str,
 ) -> Result<(), Error> {
-    let new_settings = merge_validate_patch_inner(settings, json_patch)?;
+    let new_settings = merge_validate_patch_inner(settings.as_settings(), json_patch)?;
 
-    settings
+    let _ = settings
         .update(move |settings| *settings = new_settings)
         .await
         .map_err(Error::Settings)?;

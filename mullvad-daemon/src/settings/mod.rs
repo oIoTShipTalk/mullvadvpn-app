@@ -1,4 +1,4 @@
-use futures::TryFutureExt;
+use futures::{channel::oneshot, TryFutureExt};
 use mullvad_types::{
     custom_list::Error as CustomListError,
     relay_constraints::{RelayConstraints, RelaySettings, WireguardConstraints},
@@ -6,15 +6,19 @@ use mullvad_types::{
 };
 use std::{
     fmt::{self, Display},
+    future::Future,
     ops::Deref,
     path::{Path, PathBuf},
 };
 use talpid_core::firewall::is_local_address;
+use talpid_core::mpsc::Sender;
 use talpid_types::ErrorExt;
 use tokio::{
     fs,
     io::{self, AsyncWriteExt},
 };
+
+use crate::DaemonEventSender;
 
 pub mod patch;
 
@@ -89,11 +93,166 @@ fn handle_custom_list_error(
     }
 }
 
+pub struct ChangeNotification {
+    pub old_settings: Settings,
+    pub new_settings: Settings,
+}
+
+pub struct SettingsManager {
+    settings: SettingsPersister,
+    daemon_event_sender: DaemonEventSender<(ChangeNotification, oneshot::Sender<()>)>,
+}
+
+impl SettingsManager {
+    pub(crate) fn new(
+        settings: SettingsPersister,
+        daemon_event_sender: DaemonEventSender<(ChangeNotification, oneshot::Sender<()>)>,
+    ) -> Self {
+        SettingsManager {
+            settings,
+            daemon_event_sender,
+        }
+    }
+
+    /// Return a compact summary of important settings
+    pub fn summary(&self) -> SettingsSummary<'_> {
+        SettingsSummary {
+            settings: &self.settings,
+        }
+    }
+
+    fn notify_listener(&self, old_settings: Settings) -> impl Future<Output = ()> {
+        let (done_tx, done_rx) = oneshot::channel();
+
+        let _ = self.daemon_event_sender.send((
+            ChangeNotification {
+                old_settings,
+                new_settings: self.settings.clone(),
+            },
+            done_tx,
+        ));
+
+        async move {
+            let _ = done_rx.await;
+        }
+    }
+
+    /// Resets default settings
+    pub async fn reset(&mut self) -> Result<impl Future<Output = ()>, Error> {
+        let old_settings = self.settings.to_settings();
+
+        self.settings.reset().await?;
+
+        let made_changes = self.as_settings() != &old_settings;
+        let notify = self.notify_listener(old_settings);
+
+        Ok(async move {
+            if made_changes {
+                notify.await
+            }
+        })
+    }
+
+    pub fn as_settings(&self) -> &Settings {
+        &self.settings
+    }
+
+    pub fn to_settings(&self) -> Settings {
+        self.settings.clone()
+    }
+
+    /// Edit the settings in a closure and write the changes to disk.
+    ///
+    /// # On success
+    ///
+    /// Returns a boolean indicating whether any settings were changed.
+    ///
+    /// # On failure
+    ///
+    /// If the settings could not be written to disk, all changes are rolled
+    /// back, and an error is returned.
+    ///
+    /// # Note
+    ///
+    /// If no settings were changed, no I/O will be performed.
+    pub async fn update(
+        &mut self,
+        update_fn: impl FnOnce(&mut Settings),
+    ) -> Result<impl Future<Output = ()>, Error> {
+        let old_settings = self.settings.to_settings();
+        let made_changes = self.settings.update(update_fn).await?;
+
+        let notify = self.notify_listener(old_settings);
+
+        Ok(async move {
+            if made_changes {
+                notify.await
+            }
+        })
+    }
+
+    /// Edit the settings in a closure, and write the changes to disk.
+    ///
+    /// # On success
+    ///
+    /// Returns a boolean indicating whether any settings were changed.
+    ///
+    /// # On failure
+    ///
+    /// `try_update` may fail in two scenarios
+    ///
+    /// ## The settings could not be written to disk
+    ///
+    /// In this case, all changes are rolled back and an error is returned.
+    ///
+    /// ## `update_fn` failed
+    ///
+    /// If `update_fn` were to fail the error will be propagated through the
+    /// [`Error::UpdateFailed`] error variant. Since the error will be boxed, it
+    /// has to be downcasted at runtime using [`Box::downcast`] in case you want
+    /// to inspect the error closer.
+    ///
+    /// ```ignore
+    /// #[derive(Debug, thiserror::Error)]
+    /// pub enum MyError {
+    ///   #[error("Failed for this reason: {0:?}")]
+    ///   Failed(String),
+    /// }
+    ///
+    /// let settings = Settings::default_settings();
+    /// let err = settings.try_update(|settings| {
+    ///   // Perform some update on the settings
+    ///   settings.allow_lan = !settings.allow_lan;
+    ///   // Fail the update procedure due to some error
+    ///   Err(MyError::Failed("No particular reason".to_string()))
+    /// });
+    ///
+    /// matches!(err, Error::UpdateFailed(_)) ;
+    /// assert_eq!(settings, Settings::default_settings())
+    /// ```
+    pub async fn try_update<E>(
+        &mut self,
+        update_fn: impl FnOnce(&mut Settings) -> Result<(), E>,
+    ) -> Result<impl Future<Output = ()>, Error>
+    where
+        E: std::error::Error + Send + Sync + 'static,
+    {
+        let old_settings = self.settings.to_settings();
+        let made_changes = self.settings.try_update(update_fn).await?;
+
+        let notify = self.notify_listener(old_settings);
+
+        Ok(async move {
+            if made_changes {
+                notify.await
+            }
+        })
+    }
+}
+
 pub struct SettingsPersister {
     settings: Settings,
     path: PathBuf,
-    #[allow(clippy::type_complexity)]
-    on_change_listeners: Vec<Box<dyn Fn(&Settings) + Send + Sync>>,
 }
 
 pub type MadeChanges = bool;
@@ -117,11 +276,7 @@ impl SettingsPersister {
             settings.show_beta_releases = true;
         }
 
-        let mut persister = SettingsPersister {
-            settings,
-            path,
-            on_change_listeners: vec![],
-        };
+        let mut persister = SettingsPersister { settings, path };
 
         if should_save {
             if let Err(error) = persister.save().await {
@@ -235,8 +390,6 @@ impl SettingsPersister {
             })
             .await?;
 
-        self.notify_listeners();
-
         Ok(())
     }
 
@@ -339,29 +492,7 @@ impl SettingsPersister {
         Self::save_inner(&self.path, &new_settings).await?;
         self.settings = new_settings;
 
-        self.notify_listeners();
-
         Ok(true)
-    }
-
-    /// Return a compact summary of important settings
-    pub fn summary(&self) -> SettingsSummary<'_> {
-        SettingsSummary {
-            settings: &self.settings,
-        }
-    }
-
-    pub fn register_change_listener(
-        &mut self,
-        change_listener: impl Fn(&Settings) + Send + Sync + 'static,
-    ) {
-        self.on_change_listeners.push(Box::new(change_listener));
-    }
-
-    fn notify_listeners(&self) {
-        for listener in &self.on_change_listeners {
-            listener(&self.settings);
-        }
     }
 }
 

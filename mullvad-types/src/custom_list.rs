@@ -86,6 +86,10 @@ impl CustomListsSettings {
         Ok(())
     }
 
+    pub fn find_by_id(&self, list_id: &Id) -> Option<&CustomList> {
+        self.custom_lists.iter().find(|list| list.id == *list_id)
+    }
+
     fn check_list_name_is_unique(&self, new_list: &CustomList) -> Result<(), Error> {
         if self
             .custom_lists
