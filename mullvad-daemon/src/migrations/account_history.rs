@@ -100,7 +100,7 @@ async fn write_format_v3(mut file: File, token: Option<AccountToken>) -> Result<
             .await
             .map_err(Error::WriteHistory)?;
     }
-    file.sync_all().await.map_err(Error::WriteHistory)
+    file.flush().await.map_err(Error::WriteHistory)
 }
 
 fn try_format_v2(bytes: &[u8]) -> Result<Option<(AccountToken, serde_json::Value)>> {

@@ -3,11 +3,13 @@ use std::{
     path::{Path, PathBuf},
 };
 use talpid_types::ErrorExt;
-use tokio::{fs, io};
+use tokio::{fs, io::{self, AsyncWriteExt}};
 
-/// Stores content in a temporary file before moving it to the
-/// final destination, ensuring that consumers of the file never
-/// end up with partial content. Must be moved with `finalize`.
+/// Stores content in a temporary file before moving it to the final destination, ensuring that
+/// consumers of the file never end up with partial content. Must be moved with `finalize`.
+///
+/// This does not perform a full sync of the file to disk, only a flush. If the system crashes,
+/// there is a risk of data loss.
 pub struct AtomicFile {
     file: Option<fs::File>,
     temp_path: PathBuf,
@@ -28,8 +30,8 @@ impl AtomicFile {
     /// Flushes and moves the file to `self.target_path`, replacing it if it exists.
     pub async fn finalize(mut self) -> io::Result<()> {
         let result = async {
-            let file = self.file.take().unwrap();
-            file.sync_all().await?;
+            let mut file = self.file.take().unwrap();
+            file.flush().await?;
             let std_file = file.into_std().await;
             let _ = tokio::task::spawn_blocking(move || drop(std_file)).await;
             fs::rename(&self.temp_path, &self.target_path).await

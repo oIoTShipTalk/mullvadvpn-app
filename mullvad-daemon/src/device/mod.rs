@@ -1217,7 +1217,6 @@ impl DeviceCacher {
         self.file.seek(io::SeekFrom::Start(0)).await?;
         self.file.write_all(&data).await?;
         self.file.flush().await?;
-        self.file.get_mut().sync_data().await?;
 
         Ok(())
     }
