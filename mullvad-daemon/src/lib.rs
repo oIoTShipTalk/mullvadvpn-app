@@ -23,6 +23,7 @@ pub mod rpc_uniqueness_check;
 pub mod runtime;
 pub mod settings;
 pub mod shutdown;
+mod split_tunnel;
 mod target_state;
 mod tunnel;
 pub mod version;
@@ -79,7 +80,6 @@ use std::{
 };
 use talpid_core::{
     mpsc::Sender,
-    split_tunnel,
     tunnel_state_machine::{self, TunnelCommand, TunnelStateMachineHandle},
 };
 #[cfg(target_os = "android")]
@@ -150,11 +150,11 @@ pub enum Error {
 
     #[cfg(target_os = "linux")]
     #[error("Unable to initialize split tunneling")]
-    InitSplitTunneling(#[source] split_tunnel::Error),
+    InitSplitTunneling(#[source] talpid_core::split_tunnel::Error),
 
     #[cfg(any(windows, target_os = "android", target_os = "macos"))]
     #[error("Split tunneling error")]
-    SplitTunnelError(#[source] split_tunnel::Error),
+    SplitTunnelError(#[source] talpid_core::split_tunnel::Error),
 
     #[error("An account is already set")]
     AlreadyLoggedIn,
@@ -327,16 +327,16 @@ pub enum DaemonCommand {
     FactoryReset(ResponseTx<(), Error>),
     /// Request list of processes excluded from the tunnel
     #[cfg(target_os = "linux")]
-    GetSplitTunnelProcesses(ResponseTx<Vec<i32>, split_tunnel::Error>),
+    GetSplitTunnelProcesses(ResponseTx<Vec<i32>, talpid_core::split_tunnel::Error>),
     /// Exclude traffic of a process (PID) from the tunnel
     #[cfg(target_os = "linux")]
-    AddSplitTunnelProcess(ResponseTx<(), split_tunnel::Error>, i32),
+    AddSplitTunnelProcess(ResponseTx<(), talpid_core::split_tunnel::Error>, i32),
     /// Remove process (PID) from list of processes excluded from the tunnel
     #[cfg(target_os = "linux")]
-    RemoveSplitTunnelProcess(ResponseTx<(), split_tunnel::Error>, i32),
+    RemoveSplitTunnelProcess(ResponseTx<(), talpid_core::split_tunnel::Error>, i32),
     /// Clear list of processes excluded from the tunnel
     #[cfg(target_os = "linux")]
-    ClearSplitTunnelProcesses(ResponseTx<(), split_tunnel::Error>),
+    ClearSplitTunnelProcesses(ResponseTx<(), talpid_core::split_tunnel::Error>),
     /// Exclude traffic of an application from the tunnel
     #[cfg(any(windows, target_os = "android", target_os = "macos"))]
     AddSplitTunnelApp(ResponseTx<(), Error>, SplitApp),
@@ -351,7 +351,7 @@ pub enum DaemonCommand {
     SetSplitTunnelState(ResponseTx<(), Error>, bool),
     /// Returns all processes currently being excluded from the tunnel
     #[cfg(windows)]
-    GetSplitTunnelProcesses(ResponseTx<Vec<ExcludedProcess>, split_tunnel::Error>),
+    GetSplitTunnelProcesses(ResponseTx<Vec<ExcludedProcess>, talpid_core::split_tunnel::Error>),
     /// Notify the split tunnel monitor that a volume was mounted or dismounted
     #[cfg(target_os = "windows")]
     CheckVolumes(ResponseTx<(), Error>),
@@ -564,7 +564,7 @@ pub struct Daemon {
     tunnel_state: TunnelState,
     target_state: PersistentTargetState,
     #[cfg(target_os = "linux")]
-    exclude_pids: split_tunnel::PidManager,
+    exclude_pids: talpid_core::split_tunnel::PidManager,
     rx: mpsc::UnboundedReceiver<InternalDaemonEvent>,
     tx: DaemonEventSender,
     reconnection_job: Option<AbortHandle>,
@@ -700,17 +700,7 @@ impl Daemon {
         };
 
         #[cfg(any(windows, target_os = "android", target_os = "macos"))]
-        let exclude_paths = if settings.split_tunnel.enable_exclusions {
-            settings
-                .split_tunnel
-                .apps
-                .iter()
-                .cloned()
-                .map(SplitApp::to_tunnel_command_repr)
-                .collect()
-        } else {
-            vec![]
-        };
+        let split_tunnel_manager = split_tunnel::SplitTunnelManager::new(&settings);
 
         let parameters_generator = tunnel::ParametersGenerator::new(
             account_manager.clone(),
@@ -735,7 +725,7 @@ impl Daemon {
                     .endpoint,
                 reset_firewall: *target_state != TargetState::Secured,
                 #[cfg(any(windows, target_os = "android", target_os = "macos"))]
-                exclude_paths,
+                exclude_paths: split_tunnel_manager.get_tunnel_paths(),
             },
             parameters_generator.clone(),
             log_dir,
@@ -793,7 +783,7 @@ impl Daemon {
             },
             target_state,
             #[cfg(target_os = "linux")]
-            exclude_pids: split_tunnel::PidManager::new().map_err(Error::InitSplitTunneling)?,
+            exclude_pids: talpid_core::split_tunnel::PidManager::new().map_err(Error::InitSplitTunneling)?,
             rx: internal_event_rx,
             tx: internal_event_tx,
             reconnection_job: None,
@@ -1830,7 +1820,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
-    fn on_get_split_tunnel_processes(&mut self, tx: ResponseTx<Vec<i32>, split_tunnel::Error>) {
+    fn on_get_split_tunnel_processes(&mut self, tx: ResponseTx<Vec<i32>, talpid_core::split_tunnel::Error>) {
         let result = self.exclude_pids.list().map_err(|error| {
             log::error!("{}", error.display_chain_with_msg("Unable to obtain PIDs"));
             error
@@ -1839,7 +1829,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
-    fn on_add_split_tunnel_process(&mut self, tx: ResponseTx<(), split_tunnel::Error>, pid: i32) {
+    fn on_add_split_tunnel_process(&mut self, tx: ResponseTx<(), talpid_core::split_tunnel::Error>, pid: i32) {
         let result = self.exclude_pids.add(pid).map_err(|error| {
             log::error!("{}", error.display_chain_with_msg("Unable to add PID"));
             error
@@ -1850,7 +1840,7 @@ impl Daemon {
     #[cfg(target_os = "linux")]
     fn on_remove_split_tunnel_process(
         &mut self,
-        tx: ResponseTx<(), split_tunnel::Error>,
+        tx: ResponseTx<(), talpid_core::split_tunnel::Error>,
         pid: i32,
     ) {
         let result = self.exclude_pids.remove(pid).map_err(|error| {
@@ -1861,7 +1851,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
-    fn on_clear_split_tunnel_processes(&mut self, tx: ResponseTx<(), split_tunnel::Error>) {
+    fn on_clear_split_tunnel_processes(&mut self, tx: ResponseTx<(), talpid_core::split_tunnel::Error>) {
         let result = self.exclude_pids.clear().map_err(|error| {
             log::error!("{}", error.display_chain_with_msg("Unable to clear PIDs"));
             error
@@ -2056,7 +2046,7 @@ impl Daemon {
     #[cfg(windows)]
     fn on_get_split_tunnel_processes(
         &self,
-        tx: ResponseTx<Vec<ExcludedProcess>, split_tunnel::Error>,
+        tx: ResponseTx<Vec<ExcludedProcess>, talpid_core::split_tunnel::Error>,
     ) {
         Self::oneshot_send(
             tx,
