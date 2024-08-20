@@ -246,6 +246,10 @@ msgstr ""
 msgid "Israel"
 msgstr ""
 
+#. TR IST
+msgid "Istanbul"
+msgstr ""
+
 #. IT
 msgid "Italy"
 msgstr ""
@@ -572,6 +576,10 @@ msgstr ""
 
 #. CA TOR
 msgid "Toronto"
+msgstr ""
+
+#. TR
+msgid "Turkey"
 msgstr ""
 
 #. GB
