@@ -1505,6 +1505,7 @@ impl Daemon {
         let _ = tx.send(save_result.map(|_| ()));
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_target_state(
         &mut self,
         tx: oneshot::Sender<bool>,
@@ -1514,6 +1515,7 @@ impl Daemon {
         Self::oneshot_send(tx, state_change_initated, "state change initiated");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_reconnect(&mut self, tx: oneshot::Sender<bool>) {
         if *self.target_state == TargetState::Secured || self.tunnel_state.is_in_error_state() {
             self.connect_tunnel();
@@ -1524,15 +1526,18 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_state(&self, tx: oneshot::Sender<TunnelState>) {
         Self::oneshot_send(tx, self.tunnel_state.clone(), "current state");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_is_performing_post_upgrade(&self, tx: oneshot::Sender<bool>) {
         let performing_post_upgrade = !self.migration_complete.is_complete();
         Self::oneshot_send(tx, performing_post_upgrade, "performing post upgrade");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_create_new_account(&mut self, tx: ResponseTx<String, Error>) {
         let account_manager = self.account_manager.clone();
         tokio::spawn(async move {
@@ -1563,6 +1568,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_account_data(
         &mut self,
         tx: ResponseTx<AccountData, mullvad_api::rest::Error>,
@@ -1575,6 +1581,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_get_www_auth_token(&mut self, tx: ResponseTx<String, Error>) {
         if let Ok(Some(device)) = self.account_manager.data().await.map(|s| s.into_device()) {
             let future = self
@@ -1597,6 +1604,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_submit_voucher(&mut self, tx: ResponseTx<VoucherSubmission, Error>, voucher: String) {
         let manager = self.account_manager.clone();
         tokio::spawn(async move {
@@ -1611,14 +1619,17 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_relay_locations(&mut self, tx: oneshot::Sender<RelayList>) {
         Self::oneshot_send(tx, self.relay_selector.get_relays(), "relay locations");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_update_relay_locations(&mut self) {
         self.relay_list_updater.update().await;
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_login_account(&mut self, tx: ResponseTx<(), Error>, account_token: String) {
         let account_manager = self.account_manager.clone();
         let availability = self.api_runtime.availability_handle();
@@ -1640,6 +1651,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_logout_account(&mut self, tx: ResponseTx<(), Error>) {
         let account_manager = self.account_manager.clone();
         tokio::spawn(async move {
@@ -1653,6 +1665,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_device(&mut self, tx: ResponseTx<DeviceState, Error>) {
         let account_manager = self.account_manager.clone();
         tokio::spawn(async move {
@@ -1668,6 +1681,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_update_device(&mut self, tx: ResponseTx<(), Error>) {
         let account_manager = self.account_manager.clone();
         tokio::spawn(async move {
@@ -1683,6 +1697,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_list_devices(&self, tx: ResponseTx<Vec<Device>, Error>, token: AccountToken) {
         let service = self.account_manager.device_service.clone();
         tokio::spawn(async move {
@@ -1697,6 +1712,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_remove_device(
         &mut self,
         tx: ResponseTx<(), Error>,
@@ -1726,6 +1742,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_account_history(&mut self, tx: oneshot::Sender<Option<AccountToken>>) {
         Self::oneshot_send(
             tx,
@@ -1734,6 +1751,7 @@ impl Daemon {
         );
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_clear_account_history(&mut self, tx: ResponseTx<(), Error>) {
         let result = self
             .account_history
@@ -1743,6 +1761,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "clear_account_history response");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_version_info(&mut self, tx: oneshot::Sender<Result<AppVersionInfo, Error>>) {
         let mut handle = self.version_updater_handle.clone();
         tokio::spawn(async move {
@@ -1763,6 +1782,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_current_version(&mut self, tx: oneshot::Sender<AppVersion>) {
         Self::oneshot_send(
             tx,
@@ -1771,6 +1791,7 @@ impl Daemon {
         );
     }
 
+    #[tracing::instrument(skip_all)]
     #[cfg(not(target_os = "android"))]
     async fn on_factory_reset(&mut self, tx: ResponseTx<(), Error>) {
         let mut last_error = None;
@@ -1814,6 +1835,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
+    #[tracing::instrument(skip_all)]
     fn on_get_split_tunnel_processes(&mut self, tx: ResponseTx<Vec<i32>, split_tunnel::Error>) {
         let result = self.exclude_pids.list().inspect_err(|error| {
             log::error!("{}", error.display_chain_with_msg("Unable to obtain PIDs"));
@@ -1822,6 +1844,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
+    #[tracing::instrument(skip_all)]
     fn on_add_split_tunnel_process(&mut self, tx: ResponseTx<(), split_tunnel::Error>, pid: i32) {
         let result = self.exclude_pids.add(pid).inspect_err(|error| {
             log::error!("{}", error.display_chain_with_msg("Unable to add PID"));
@@ -1830,6 +1853,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
+    #[tracing::instrument(skip_all)]
     fn on_remove_split_tunnel_process(
         &mut self,
         tx: ResponseTx<(), split_tunnel::Error>,
@@ -1842,6 +1866,7 @@ impl Daemon {
     }
 
     #[cfg(target_os = "linux")]
+    #[tracing::instrument(skip_all)]
     fn on_clear_split_tunnel_processes(&mut self, tx: ResponseTx<(), split_tunnel::Error>) {
         let result = self.exclude_pids.clear().inspect_err(|error| {
             log::error!("{}", error.display_chain_with_msg("Unable to clear PIDs"));
@@ -2050,6 +2075,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_relay_settings(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2074,6 +2100,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_allow_lan(&mut self, tx: ResponseTx<(), settings::Error>, allow_lan: bool) {
         match self
             .settings
@@ -2099,6 +2126,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_show_beta_releases(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2123,6 +2151,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_block_when_disconnected(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2152,6 +2181,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_auto_connect(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2172,6 +2202,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_openvpn_mssfix(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2198,6 +2229,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_bridge_settings(
         &mut self,
         tx: ResponseTx<(), Error>,
@@ -2241,6 +2273,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_obfuscation_settings(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2267,6 +2300,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_bridge_state(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2295,6 +2329,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "on_set_bridge_state response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_enable_ipv6(&mut self, tx: ResponseTx<(), settings::Error>, enable_ipv6: bool) {
         match self
             .settings
@@ -2315,6 +2350,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_quantum_resistant_tunnel(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2343,6 +2379,7 @@ impl Daemon {
     }
 
     #[cfg(daita)]
+    #[tracing::instrument(skip_all)]
     async fn on_set_daita_enabled(&mut self, tx: ResponseTx<(), settings::Error>, value: bool) {
         use mullvad_types::{constraints::Constraint, Intersection};
 
@@ -2383,6 +2420,7 @@ impl Daemon {
     }
 
     #[cfg(daita)]
+    #[tracing::instrument(skip_all)]
     async fn on_set_daita_smart_routing(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2423,6 +2461,7 @@ impl Daemon {
     }
 
     #[cfg(daita)]
+    #[tracing::instrument(skip_all)]
     async fn on_set_daita_settings(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2447,6 +2486,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_dns_options(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2479,6 +2519,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_relay_override(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2502,6 +2543,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_clear_all_relay_overrides(&mut self, tx: ResponseTx<(), settings::Error>) {
         match self
             .settings
@@ -2521,6 +2563,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_wireguard_mtu(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2549,6 +2592,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_wireguard_rotation_interval(
         &mut self,
         tx: ResponseTx<(), settings::Error>,
@@ -2581,6 +2625,7 @@ impl Daemon {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_rotate_wireguard_key(&self, tx: ResponseTx<(), Error>) {
         let manager = self.account_manager.clone();
         tokio::spawn(async move {
@@ -2593,6 +2638,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_get_wireguard_key(&self, tx: ResponseTx<Option<PublicKey>, Error>) {
         let result =
             if let Ok(Some(config)) = self.account_manager.data().await.map(|s| s.into_device()) {
@@ -2603,6 +2649,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "get_wireguard_key response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_create_custom_list(
         &mut self,
         tx: ResponseTx<mullvad_types::custom_list::Id, Error>,
@@ -2612,6 +2659,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "create_custom_list response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_delete_custom_list(
         &mut self,
         tx: ResponseTx<(), Error>,
@@ -2621,16 +2669,19 @@ impl Daemon {
         Self::oneshot_send(tx, result, "delete_custom_list response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_update_custom_list(&mut self, tx: ResponseTx<(), Error>, new_list: CustomList) {
         let result = self.update_custom_list(new_list).await;
         Self::oneshot_send(tx, result, "update_custom_list response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_clear_custom_lists(&mut self, tx: ResponseTx<(), Error>) {
         let result = self.clear_custom_lists().await;
         Self::oneshot_send(tx, result, "clear_custom_lists response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_add_access_method(
         &mut self,
         tx: ResponseTx<mullvad_types::access_method::Id, Error>,
@@ -2645,6 +2696,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "add_api_access_method response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_remove_api_access_method(
         &mut self,
         tx: ResponseTx<(), Error>,
@@ -2657,6 +2709,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "remove_api_access_method response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_set_api_access_method(
         &mut self,
         tx: ResponseTx<(), Error>,
@@ -2669,6 +2722,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "set_api_access_method response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_update_api_access_method(
         &mut self,
         tx: ResponseTx<(), Error>,
@@ -2681,6 +2735,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "update_api_access_method response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_clear_custom_api_access_methods(&mut self, tx: ResponseTx<(), Error>) {
         let result = self
             .clear_custom_api_access_methods()
@@ -2689,6 +2744,7 @@ impl Daemon {
         Self::oneshot_send(tx, result, "clear_custom_api_access_methods response");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_current_api_access_method(&mut self, tx: ResponseTx<AccessMethodSetting, Error>) {
         let handle = self.access_mode_handler.clone();
         tokio::spawn(async move {
@@ -2701,6 +2757,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_test_proxy_as_access_method(
         &mut self,
         tx: ResponseTx<bool, Error>,
@@ -2732,6 +2789,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_test_api_access_method(
         &mut self,
         tx: ResponseTx<bool, Error>,
@@ -2783,10 +2841,12 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_settings(&self, tx: oneshot::Sender<Settings>) {
         Self::oneshot_send(tx, self.settings.to_settings(), "get_settings response");
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_reset_settings(&mut self, tx: ResponseTx<(), settings::Error>) {
         let result = self.settings.reset().await;
         Self::oneshot_send(tx, result, "reset_settings response");
@@ -2847,12 +2907,14 @@ impl Daemon {
         self.reconnect_tunnel();
     }
 
+    #[tracing::instrument(skip_all)]
     fn oneshot_send<T>(tx: oneshot::Sender<T>, t: T, msg: &'static str) {
         if tx.send(t).is_err() {
             log::warn!("Unable to send {} to the daemon command sender", msg);
         }
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_trigger_shutdown(&mut self, user_init_shutdown: bool) {
         // Block all traffic before shutting down to ensure that no traffic can leak on boot or
         // shutdown.
@@ -2867,6 +2929,7 @@ impl Daemon {
         self.disconnect_tunnel();
     }
 
+    #[tracing::instrument(skip_all)]
     /// Prepare the daemon for a restart by setting the target state to [`TargetState::Secured`].
     ///
     /// - `shutdown`: If the daemon should shut down itself when after setting the secured target
@@ -2930,6 +2993,7 @@ impl Daemon {
         });
     }
 
+    #[tracing::instrument(skip_all)]
     async fn on_apply_json_settings(
         &mut self,
         tx: ResponseTx<(), settings::patch::Error>,
@@ -2942,11 +3006,13 @@ impl Daemon {
         Self::oneshot_send(tx, result, "apply_json_settings response");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_export_json_settings(&mut self, tx: ResponseTx<String, settings::patch::Error>) {
         let result = settings::patch::export_settings(&self.settings);
         Self::oneshot_send(tx, result, "export_json_settings response");
     }
 
+    #[tracing::instrument(skip_all)]
     fn on_get_feature_indicators(&self, tx: oneshot::Sender<FeatureIndicators>) {
         let feature_indicators = match &self.tunnel_state {
             TunnelState::Connecting {
