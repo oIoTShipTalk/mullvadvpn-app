@@ -41,7 +41,7 @@ pub enum Error {
 struct ManagementServiceImpl {
     daemon_tx: DaemonCommandSender,
     subscriptions: Arc<Mutex<Vec<EventsListenerSender>>>,
-    log_reload_handle: crate::logging::ReloadHandle,
+    log_reload_handle: crate::logging::LogHandle,
 }
 
 pub type ServiceResult<T> = std::result::Result<Response<T>, Status>;
@@ -1125,7 +1125,7 @@ impl ManagementInterfaceServer {
     pub fn start(
         daemon_tx: DaemonCommandSender,
         rpc_socket_path: impl AsRef<Path>,
-        log_reload_handle: crate::logging::ReloadHandle,
+        log_reload_handle: crate::logging::LogHandle,
     ) -> Result<ManagementInterfaceServer, Error> {
         let subscriptions = Arc::<Mutex<Vec<EventsListenerSender>>>::default();
         // NOTE: It is important that the channel buffer size is kept at 0. When sending a signal

@@ -597,7 +597,7 @@ impl Daemon {
         rpc_socket_path: PathBuf,
         daemon_command_channel: DaemonCommandChannel,
         #[cfg(target_os = "android")] android_context: AndroidContext,
-        log_reload_handle: logging::ReloadHandle,
+        log_reload_handle: logging::LogHandle,
     ) -> Result<Self, Error> {
         #[cfg(target_os = "macos")]
         macos::bump_filehandle_limit();
