@@ -766,6 +766,14 @@ impl MullvadProxyClient {
             .map(|response| response.into_inner())
             .map(FeatureIndicators::from)
     }
+
+    pub async fn set_log_filter(&mut self, level: String) -> Result<()> {
+        self.0
+            .set_log_filter(types::LogFilter::from(level))
+            .await
+            .map_err(Error::Rpc)?;
+        Ok(())
+    }
 }
 
 #[cfg(not(target_os = "android"))]

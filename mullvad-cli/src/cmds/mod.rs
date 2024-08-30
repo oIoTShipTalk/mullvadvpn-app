@@ -11,6 +11,7 @@ pub mod debug;
 pub mod dns;
 pub mod lan;
 pub mod lockdown;
+pub mod logging;
 pub mod obfuscation;
 pub mod patch;
 pub mod proxies;
