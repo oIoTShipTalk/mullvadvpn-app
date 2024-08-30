@@ -18,7 +18,6 @@ api-override = ["mullvad-api/api-override"]
 chrono = { workspace = true }
 thiserror = { workspace = true }
 either = "1.11"
-tracing-subscriber = { version = "0.3", features = ["env-filter", "chrono"] }
 futures = { workspace = true }
 libc = "0.2"
 log = { workspace = true }

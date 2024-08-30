@@ -127,6 +127,8 @@ service ManagementService {
 
   // Set if we should leak traffic to Apple services.
   rpc SetAppleServicesBypass(google.protobuf.BoolValue) returns (google.protobuf.Empty) {}
+
+  rpc SetLogSettings(LogSettings) returns (google.protobuf.Empty) {}
 }
 
 message UUID { string value = 1; }
@@ -765,3 +767,16 @@ message PlayPurchase {
 }
 
 message PlayPurchasePaymentToken { string token = 1; }
+
+message LogSettings {
+  enum LogLevel {
+    OFF = 0;
+    TRACE = 1;
+    DEBUG = 2;
+    INFO = 3;
+    WARN = 4;
+    ERROR = 5;
+  }
+
+  LogLevel level = 1;
+}

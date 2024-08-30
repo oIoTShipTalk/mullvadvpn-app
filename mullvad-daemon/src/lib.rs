@@ -597,13 +597,14 @@ impl Daemon {
         rpc_socket_path: PathBuf,
         daemon_command_channel: DaemonCommandChannel,
         #[cfg(target_os = "android")] android_context: AndroidContext,
+        log_reload_handle: logging::ReloadHandle,
     ) -> Result<Self, Error> {
         #[cfg(target_os = "macos")]
         macos::bump_filehandle_limit();
 
         let command_sender = daemon_command_channel.sender();
         let management_interface =
-            ManagementInterfaceServer::start(command_sender, rpc_socket_path)
+            ManagementInterfaceServer::start(command_sender, rpc_socket_path, log_reload_handle)
                 .map_err(Error::ManagementInterfaceError)?;
 
         let (internal_event_tx, internal_event_rx) = daemon_command_channel.destructure();
