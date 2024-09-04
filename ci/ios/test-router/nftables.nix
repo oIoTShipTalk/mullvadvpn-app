@@ -39,6 +39,10 @@ in
       "sys-subsystem-net-devices-wan.device"
       "sys-subsystem-net-devices-lan.device"
     ];
+    after = [
+      "sys-subsystem-net-devices-wan.device"
+      "sys-subsystem-net-devices-lan.device"
+    ];
   };
 
   config.networking.nftables = {
