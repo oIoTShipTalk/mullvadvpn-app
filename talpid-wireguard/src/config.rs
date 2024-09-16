@@ -28,7 +28,6 @@ pub struct Config {
     #[cfg(target_os = "linux")]
     pub fwmark: Option<u32>,
     /// Enable IPv6 routing rules
-    #[cfg(target_os = "linux")]
     pub enable_ipv6: bool,
     /// Obfuscator config to be used for reaching the relay.
     pub obfuscator_config: Option<ObfuscatorConfig>,
@@ -69,7 +68,7 @@ impl Config {
     fn new(
         connection: &wireguard::ConnectionConfig,
         wg_options: &wireguard::TunnelOptions,
-        generic_options: &GenericTunnelOptions,
+        #[allow(unused_variables)] generic_options: &GenericTunnelOptions,
         obfuscator_config: &Option<ObfuscatorConfig>,
         default_mtu: u16,
     ) -> Result<Config, Error> {
@@ -80,13 +79,19 @@ impl Config {
         if tunnel.addresses.is_empty() {
             return Err(Error::InvalidTunnelIpError);
         }
+
+        // On macOS, always config an address and allowed IPs for v6
+        #[cfg(target_os = "macos")]
+        let allow_ipv6_addrs = true;
+
+        #[cfg(not(target_os = "macos"))]
+        let allow_ipv6_addrs = generic_options.enable_ipv6;
+
         tunnel
             .addresses
-            .retain(|ip| ip.is_ipv4() || generic_options.enable_ipv6);
+            .retain(|ip| ip.is_ipv4() || allow_ipv6_addrs);
 
-        let ipv6_gateway = connection
-            .ipv6_gateway
-            .filter(|_opt| generic_options.enable_ipv6);
+        let ipv6_gateway = connection.ipv6_gateway.filter(|_opt| allow_ipv6_addrs);
 
         let mut config = Config {
             tunnel,
@@ -97,7 +102,7 @@ impl Config {
             mtu,
             #[cfg(target_os = "linux")]
             fwmark: connection.fwmark,
-            #[cfg(target_os = "linux")]
+            // NOTE: IPv6 routes should not be added on macOS, unless the option is set
             enable_ipv6: generic_options.enable_ipv6,
             obfuscator_config: obfuscator_config.to_owned(),
             quantum_resistant: wg_options.quantum_resistant,
@@ -109,7 +114,7 @@ impl Config {
 
         for peer in config.peers_mut() {
             peer.allowed_ips
-                .retain(|ip| ip.is_ipv4() || generic_options.enable_ipv6);
+                .retain(|ip| ip.is_ipv4() || allow_ipv6_addrs);
             if peer.allowed_ips.is_empty() {
                 return Err(Error::InvalidPeerIpError);
             }

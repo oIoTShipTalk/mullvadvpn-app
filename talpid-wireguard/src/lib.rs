@@ -1010,11 +1010,12 @@ impl WireguardMonitor {
         }
     }
 
-    /// Return routes for all allowed IPs.
+    /// Return routes for all allowed IPs, except IPv6 when it is disabled.
     fn get_tunnel_destinations(config: &Config) -> impl Iterator<Item = ipnetwork::IpNetwork> + '_ {
         config
             .peers()
             .flat_map(|peer| peer.allowed_ips.iter())
+            .filter(|net| net.is_ipv4() || config.enable_ipv6)
             .cloned()
     }
 
