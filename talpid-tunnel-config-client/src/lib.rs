@@ -102,14 +102,10 @@ pub type RelayConfigService = proto::ephemeral_peer_client::EphemeralPeerClient<
 pub const CONFIG_SERVICE_PORT: u16 = 1337;
 
 /// MTU to set on the tunnel config client socket. We want a low value to prevent fragmentation.
-/// This is needed for two reasons:
-/// 1. Especially on Android, we've found that the real MTU is often lower than the default MTU, and
-///    we cannot lower it further. This causes the outer packets to be dropped. Also, MTU detection
-///    will likely occur after the PQ handshake, so we cannot assume that the MTU is already
-///    correctly configured.
-/// 2. MH + PQ on macOS has connection issues during the handshake due to PF blocking packet
-///    fragments for not having a port. In the longer term this might be fixed by allowing the
-///    handshake to work even if there is fragmentation.
+/// Especially on Android, we've found that the real MTU is often lower than the default MTU, and
+/// we cannot lower it further. This causes the outer packets to be dropped. Also, MTU detection
+/// will likely occur after the PQ handshake, so we cannot assume that the MTU is already
+/// correctly configured.
 #[cfg(not(target_os = "ios"))]
 const CONFIG_CLIENT_MTU: u16 = 576;
 
