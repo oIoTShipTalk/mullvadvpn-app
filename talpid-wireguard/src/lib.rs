@@ -212,13 +212,11 @@ async fn maybe_create_obfuscator(
             ObfuscatorConfig::Shadowsocks { endpoint } => {
                 ObfuscationSettings::Shadowsocks(shadowsocks::Settings {
                     shadowsocks_endpoint: *endpoint,
-                    // TODO: Temporary since we may different entry IPs later?
                     wireguard_endpoint: if config.entry_peer.endpoint.is_ipv4() {
                         SocketAddr::from((Ipv4Addr::LOCALHOST, 51820))
                     } else {
                         SocketAddr::from((Ipv6Addr::LOCALHOST, 51820))
                     },
-                    //wireguard_endpoint: config.entry_peer.endpoint,
                     #[cfg(target_os = "linux")]
                     fwmark: config.fwmark,
                 })
