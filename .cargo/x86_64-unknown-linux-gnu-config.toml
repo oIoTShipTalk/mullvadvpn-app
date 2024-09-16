@@ -1,0 +1,3 @@
+[env]
+LIBMNL_LIB_DIR = { value = "dist-assets/binaries/x86_64-unknown-linux-gnu", relative = true }
+LIBNFTNL_LIB_DIR = { value = "dist-assets/binaries/x86_64-unknown-linux-gnu", relative = true }
