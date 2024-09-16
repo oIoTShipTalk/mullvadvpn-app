@@ -2360,6 +2360,7 @@ dependencies = [
  "either",
  "fern",
  "futures",
+ "ipnetwork",
  "libc",
  "log",
  "log-panics",
