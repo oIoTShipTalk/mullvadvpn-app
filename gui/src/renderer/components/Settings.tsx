@@ -57,7 +57,7 @@ export default function Support() {
                   {showSubSettings ? (
                     <>
                       <Cell.Group>
-                        <UserInterfaceSettingsButton />
+                        <GeneralButton />
                         <VpnSettingsButton />
                       </Cell.Group>
 
@@ -69,7 +69,7 @@ export default function Support() {
                     </>
                   ) : (
                     <Cell.Group>
-                      <UserInterfaceSettingsButton />
+                      <GeneralButton />
                     </Cell.Group>
                   )}
 
@@ -99,16 +99,16 @@ export default function Support() {
   );
 }
 
-function UserInterfaceSettingsButton() {
+function GeneralButton() {
   const history = useHistory();
-  const navigate = useCallback(() => history.push(RoutePath.userInterfaceSettings), [history]);
+  const navigate = useCallback(() => history.push(RoutePath.general), [history]);
 
   return (
     <Cell.CellNavigationButton onClick={navigate}>
       <Cell.Label>
         {
-          // TRANSLATORS: Navigation button to the 'User interface settings' view
-          messages.pgettext('settings-view', 'User interface settings')
+          // TRANSLATORS: Navigation button to the 'General' settings view
+          messages.pgettext('settings-view', 'General')
         }
       </Cell.Label>
     </Cell.CellNavigationButton>

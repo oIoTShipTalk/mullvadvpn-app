@@ -36,7 +36,7 @@ import Support from './Support';
 import TooManyDevices from './TooManyDevices';
 import TransitionContainer, { TransitionView } from './TransitionContainer';
 import UdpOverTcp from './UdpOverTcp';
-import UserInterfaceSettings from './UserInterfaceSettings';
+import GeneralSettings from './GeneralSettings';
 import VpnSettings from './VpnSettings';
 import WireguardSettings from './WireguardSettings';
 
@@ -83,7 +83,7 @@ export default function AppRouter() {
             <Route exact path={RoutePath.account} component={Account} />
             <Route exact path={RoutePath.settings} component={Settings} />
             <Route exact path={RoutePath.selectLanguage} component={SelectLanguage} />
-            <Route exact path={RoutePath.userInterfaceSettings} component={UserInterfaceSettings} />
+            <Route exact path={RoutePath.general} component={GeneralSettings} />
             <Route exact path={RoutePath.vpnSettings} component={VpnSettings} />
             <Route exact path={RoutePath.wireguardSettings} component={WireguardSettings} />
             <Route exact path={RoutePath.daitaSettings} component={DaitaSettings} />

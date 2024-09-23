@@ -36,7 +36,7 @@ const StyledAnimateMapSettingsGroup = styled(Cell.Group)({
   },
 });
 
-export default function UserInterfaceSettings() {
+export default function GeneralSettings() {
   const { pop } = useHistory();
   const unpinnedWindow = useSelector((state) => state.settings.guiSettings.unpinnedWindow);
 
@@ -50,7 +50,7 @@ export default function UserInterfaceSettings() {
                 <TitleBarItem>
                   {
                     // TRANSLATORS: Title label in navigation bar
-                    messages.pgettext('user-interface-settings-view', 'User interface settings')
+                    messages.pgettext('user-interface-settings-view', 'General')
                   }
                 </TitleBarItem>
               </NavigationItems>
@@ -59,7 +59,7 @@ export default function UserInterfaceSettings() {
             <NavigationScrollbars>
               <SettingsHeader>
                 <HeaderTitle>
-                  {messages.pgettext('user-interface-settings-view', 'User interface settings')}
+                  {messages.pgettext('user-interface-settings-view', 'General')}
                 </HeaderTitle>
               </SettingsHeader>
 
