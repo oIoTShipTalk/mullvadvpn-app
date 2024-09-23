@@ -58,6 +58,7 @@ export default function Support() {
                     <>
                       <Cell.Group>
                         <GeneralButton />
+                        <MultihopButton />
                         <VpnSettingsButton />
                       </Cell.Group>
 
@@ -111,6 +112,20 @@ function GeneralButton() {
           messages.pgettext('settings-view', 'General')
         }
       </Cell.Label>
+    </Cell.CellNavigationButton>
+  );
+}
+
+function MultihopButton() {
+  const history = useHistory();
+  const navigate = useCallback(() => history.push(RoutePath.multihopSettings), [history]);
+  const relaySettings = useSelector((state) => state.settings.relaySettings);
+  const multihop = 'normal' in relaySettings ? relaySettings.normal.wireguard.useMultihop : false;
+
+  return (
+    <Cell.CellNavigationButton onClick={navigate}>
+      <Cell.Label>{messages.pgettext('settings-view', 'Multihop')}</Cell.Label>
+      <Cell.SubText>{multihop ? messages.gettext('On') : messages.gettext('Off')}</Cell.SubText>
     </Cell.CellNavigationButton>
   );
 }

@@ -22,8 +22,10 @@ import {
 import ExpiredAccountErrorView from './ExpiredAccountErrorView';
 import Filter from './Filter';
 import Focus, { IFocusHandle } from './Focus';
+import GeneralSettings from './GeneralSettings';
 import Launch from './Launch';
 import MainView from './main-view/MainView';
+import MultihopSettings from './MultihopSettings';
 import OpenVpnSettings from './OpenVpnSettings';
 import ProblemReport from './ProblemReport';
 import SelectLanguage from './SelectLanguage';
@@ -36,7 +38,6 @@ import Support from './Support';
 import TooManyDevices from './TooManyDevices';
 import TransitionContainer, { TransitionView } from './TransitionContainer';
 import UdpOverTcp from './UdpOverTcp';
-import GeneralSettings from './GeneralSettings';
 import VpnSettings from './VpnSettings';
 import WireguardSettings from './WireguardSettings';
 
@@ -84,6 +85,7 @@ export default function AppRouter() {
             <Route exact path={RoutePath.settings} component={Settings} />
             <Route exact path={RoutePath.selectLanguage} component={SelectLanguage} />
             <Route exact path={RoutePath.general} component={GeneralSettings} />
+            <Route exact path={RoutePath.multihopSettings} component={MultihopSettings} />
             <Route exact path={RoutePath.vpnSettings} component={VpnSettings} />
             <Route exact path={RoutePath.wireguardSettings} component={WireguardSettings} />
             <Route exact path={RoutePath.daitaSettings} component={DaitaSettings} />
