@@ -16,7 +16,7 @@ use clap::Parser;
 use tests::{config::TEST_CONFIG, get_filtered_tests};
 use vm::provision;
 
-use crate::tests::config::OpenVPNCertificate;
+use crate::tests::config::{OpenVPNCertificate, DEFAULT_MULLVAD_HOST};
 
 /// Test manager for Mullvad VPN app
 #[derive(Parser, Debug)]
@@ -256,7 +256,7 @@ async fn main() -> Result<()> {
                 (true, true) => unreachable!("invalid combination"),
             };
 
-            let mullvad_host = crate::tests::config::DEFAULT_MULLVAD_HOST.to_string();
+            let mullvad_host = DEFAULT_MULLVAD_HOST.to_string();
 
             log::debug!("Mullvad host: {mullvad_host}");
 

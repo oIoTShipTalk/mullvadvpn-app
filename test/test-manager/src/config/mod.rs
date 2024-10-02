@@ -8,6 +8,21 @@ use std::{
     path::{Path, PathBuf},
 };
 
+/// Default `mullvad_host`.
+pub const DEFAULT_MULLVAD_HOST: &str = "mullvad.net";
+/// Bundled OpenVPN CA certificate use with the installed Mullvad app.
+const OPENVPN_CA_CERTIFICATE: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../assets/",
+    "openvpn.ca.crt"
+));
+/// Script for bootstrapping the test-runner after the test-manager has successfully logged in.
+pub const BOOTSTRAP_SCRIPT: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../scripts/",
+    "ssh-setup.sh"
+));
+
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
     #[error("Could not find config dir")]
@@ -285,4 +300,46 @@ pub enum Provisioner {
     Noop,
     /// Set up test runner over SSH.
     Ssh,
+}
+
+/// The OpenVPN CA certificate to use with the installed Mullvad App.
+#[derive(Clone, Debug)]
+pub struct OpenVPNCertificate(Vec<u8>);
+
+impl OpenVPNCertificate {
+    pub fn from_file(path: impl AsRef<Path>) -> std::io::Result<Self> {
+        Ok(Self(std::fs::read(path)?))
+    }
+}
+
+impl Deref for OpenVPNCertificate {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Default for OpenVPNCertificate {
+    fn default() -> Self {
+        Self(Vec::from(OPENVPN_CA_CERTIFICATE))
+    }
+}
+
+/// A script which should be run *in* the test runner before the test run begins.
+#[derive(Clone, Debug)]
+pub struct BootstrapScript(Vec<u8>);
+
+impl Deref for BootstrapScript {
+    type Target = [u8];
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Default for BootstrapScript {
+    fn default() -> Self {
+        Self(Vec::from(BOOTSTRAP_SCRIPT))
+    }
 }

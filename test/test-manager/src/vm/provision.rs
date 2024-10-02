@@ -1,7 +1,6 @@
 use crate::{
-    config::{OsType, Provisioner, VmConfig},
+    config::{OsType, Provisioner, VmConfig, BOOTSTRAP_SCRIPT},
     package,
-    tests::config::BOOTSTRAP_SCRIPT,
 };
 use anyhow::{bail, Context, Result};
 use ssh2::Session;
