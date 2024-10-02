@@ -58,6 +58,24 @@ pub enum Display {
     Vnc,
 }
 
+/// TODO: Document
+pub enum Environment {
+    Production,  // mullvad.net
+    Staging,     // stagemole.eu
+    Development, // devmole.eu
+}
+
+impl Environment {
+    /// TODO: Document
+    pub fn to_host(&self) -> String {
+        match self {
+            Environment::Production => "mullvad.net".to_string(),
+            Environment::Staging => "stagemole.eu".to_string(),
+            Environment::Development => "devmole.eu".to_string(),
+        }
+    }
+}
+
 impl Config {
     async fn load_or_default<P: AsRef<Path>>(path: P) -> Result<Self, Error> {
         Self::load(path).await.or_else(|error| match error {
