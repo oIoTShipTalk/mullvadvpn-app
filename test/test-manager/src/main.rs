@@ -256,7 +256,8 @@ async fn main() -> Result<()> {
                 (true, true) => unreachable!("invalid combination"),
             };
 
-            let mullvad_host = config.get_host();
+            let mullvad_host = crate::tests::config::DEFAULT_MULLVAD_HOST.to_string();
+
             log::debug!("Mullvad host: {mullvad_host}");
 
             let vm_config = vm::get_vm_config(&config, &vm).context("Cannot get VM config")?;

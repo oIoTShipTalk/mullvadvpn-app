@@ -4,10 +4,9 @@ This document outlines the format of the configuration used by `test-manager` to
 
 # Format
 
-The configuration is a JSON document with two values:
+The configuration is a JSON document with a single top-level value `vms`:
 ```json
 {
-    "mullvad_host": <optional string>,
     "vms": <document>
 }
 ```
@@ -27,7 +26,6 @@ The configuration is assumed to exist in `$XDG_CONFIG_HOME/mullvad-test/config.j
 The minimal valid configuration does not contain any virtual machines
 ```json
 {
-    "mullvad_host": "stagemole.eu",
     "vms": { }
 }
 ```
@@ -37,7 +35,6 @@ The minimal valid configuration does not contain any virtual machines
 A configuration containing one Debian 12 VM and one Windows 11 VM
 ```json
 {
-    "mullvad_host": "stagemole.eu",
     "vms": {
         "debian12": {
           "vm_type": "qemu",
