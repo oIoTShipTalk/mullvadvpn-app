@@ -1,3 +1,5 @@
+use std::time::Duration;
+
 mod block_list;
 mod capture;
 mod web;
@@ -19,6 +21,16 @@ async fn main() {
             .local_addr()
             .expect("Failed to get local address of TCP socket")
     );
+
+    tokio::spawn(async {
+        loop {
+            tokio::time::sleep(Duration::from_secs(60 * 60 * 24)).await;
+
+            if let Err(err) = capture::delete_old_captures().await {
+                log::error!("Failed to delete old captures: {err}");
+            }
+        }
+    });
 
     axum::serve(listener, router).await.unwrap();
 }

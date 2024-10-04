@@ -5,6 +5,8 @@ use tokio::{fs::File, io::BufReader, sync::oneshot};
 
 mod parse;
 pub use parse::parse_pcap;
+mod cleanup;
+pub use cleanup::delete_old_captures;
 
 #[derive(thiserror::Error, Debug)]
 pub enum Error {
@@ -52,9 +54,13 @@ const RAAS_TMP_DIR: &'static str = "raas";
 
 impl Capture {
     fn capture_file_path(label: &uuid::Uuid) -> PathBuf {
+        Self::capture_dir_path()
+            .join(label.to_string())
+    }
+
+    fn capture_dir_path() -> PathBuf {
         std::env::temp_dir()
             .join(RAAS_TMP_DIR)
-            .join(label.to_string())
     }
 
     pub async fn start(&mut self, label: uuid::Uuid) -> Result<(), Error> {
