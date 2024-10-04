@@ -1,6 +1,6 @@
 use futures::StreamExt;
 use pcap::{Device, Packet, PacketCodec, PacketHeader};
-use std::{collections::BTreeMap, io, sync::mpsc as sync_mpsc};
+use std::{collections::BTreeMap, io, path::PathBuf, sync::mpsc as sync_mpsc};
 use tokio::{fs::File, io::BufReader, sync::oneshot};
 
 mod parse;
@@ -48,7 +48,15 @@ impl PacketCodec for CloneCodec {
     }
 }
 
+const RAAS_TMP_DIR: &'static str = "raas";
+
 impl Capture {
+    fn capture_file_path(label: &uuid::Uuid) -> PathBuf {
+        std::env::temp_dir()
+            .join(RAAS_TMP_DIR)
+            .join(label.to_string())
+    }
+
     pub async fn start(&mut self, label: uuid::Uuid) -> Result<(), Error> {
         if self.captures.contains_key(&label) {
             return Err(Error::CaptureInProgress);
@@ -71,7 +79,7 @@ impl Capture {
             .setnonblock()
             .map_err(Error::EnableNonblock)?;
 
-        let dump_path = std::env::temp_dir().join(label.to_string());
+        let dump_path = Self::capture_file_path(&label);
         let mut dump = capture.savefile(dump_path).map_err(Error::CreateDump)?;
 
         let (stop_tx, mut stop_rx) = oneshot::channel();
@@ -134,7 +142,7 @@ impl Capture {
             return Err(Error::CaptureInProgress);
         }
 
-        let dump_path = std::env::temp_dir().join(label.to_string());
+        let dump_path = Self::capture_file_path(&label);
         if !dump_path.exists() {
             return Err(Error::CaptureNotFound);
         }

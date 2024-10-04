@@ -88,7 +88,7 @@ impl BlockList {
     fn nft_forward_rules<'a>(
         &'a self,
         chain: &'a Chain<'a>,
-    ) -> impl Iterator<Item = Rule<'a>> + '_ {
+    ) -> impl Iterator<Item = Rule<'a>> {
         self.rules
             .values()
             .flatten()
