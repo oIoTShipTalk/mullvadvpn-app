@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{io, time::Duration, path::Path, fs};
 
 mod block_list;
 mod capture;
@@ -7,6 +7,7 @@ mod web;
 #[tokio::main]
 async fn main() {
     init_logging();
+    create_temp_dir();
 
     let mut args = std::env::args().skip(1);
     let bind_address = args.next().expect("First arg must be listening address");
@@ -42,4 +43,24 @@ fn init_logging() {
         .write_style(env_logger::WriteStyle::Always)
         .format_timestamp(None)
         .init();
+}
+
+fn create_temp_dir() {
+    let tmp_dir = std::env::temp_dir().join("raas");
+    create_dir_if_not_exist(tmp_dir).expect("Failed to create tmp directory");
+}
+
+fn create_dir_if_not_exist<P: AsRef<Path>>(path: P) -> io::Result<()> {
+    let path = path.as_ref();
+
+    if path.exists() {
+        return Ok(());
+    }
+
+    if let Some(parent) = path.parent() {
+        create_dir_if_not_exist(parent)?;
+    }
+
+    fs::create_dir(path)?;
+    Ok(())
 }
