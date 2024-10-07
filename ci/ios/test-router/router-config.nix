@@ -1,9 +1,13 @@
-args@{
-  hostname, # hostname of the router
-  lanMac ? null, # MAC address of the local area network interface
-  wifiMac ? null, # MAC address of the local area network interface
-  wanMac, # MAC address of the upstream interface
-  lanIp, # IP adderss/subnet
+args@{ hostname
+, # hostname of the router
+  lanMac ? null
+, # MAC address of the local area network interface
+  wifiMac ? null
+, # MAC address of the local area network interface
+  wanMac
+, # MAC address of the upstream interface
+  lanIp
+, # IP adderss/subnet
 }:
 
 { config, pkgs, lib, ... }:
@@ -12,7 +16,7 @@ let
 in
 
 let
-  raas = pkgs.callPackage ./raas.nix {};
+  raas = pkgs.callPackage ./raas.nix { };
 
   gatewayIpGroup = builtins.match "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)/[0-9]+" args.lanIp;
   gatewayAddress = builtins.elemAt gatewayIpGroup 0;
@@ -89,6 +93,23 @@ in
   };
 
   networking.useNetworkd = true;
+
+  networking.wireguard.interfaces.staging = {
+    privateKeyFile = "/staging-wg-private-key";
+    ips = [ "10.64.9.184/32" "fc00:bbbb:bbbb:bb01::a40:9b8/128" ];
+    allowedIPsAsRoutes = true;
+    # postSetup could be used to dynamically fetch the IP of the staging API and set up the route to that IP through this interface too.
+    # postSetup = '''';
+    peers = [{
+      publicKey = "2KS+F8ZAOUSMwygl2CYqkqFhbi3L5u58b3kIpaylaEk=";
+      name = "se-sto-wg-001-staging";
+      endpoint = "85.203.53.81:51820";
+      allowedIPs = [
+        "185.217.116.129/32"
+      ];
+    }];
+  };
+
   systemd.network.enable = true;
 
   systemd.network.networks.wan = {
@@ -199,19 +220,20 @@ in
 
   systemd.services.raas =
 
-  let
-    listenIpGroup = builtins.match "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)/[0-9]+" args.lanIp;
-    listenAddress = builtins.elemAt listenIpGroup 0;
-  in {
-    enable = true;
-    description = "Web service to apply blocking firewall rules";
-    bindsTo = [ "sys-subsystem-net-devices-lan.device" ];
-    after = [ "systemd-networkd.service" "network-online.target" ];
-    wantedBy = [ "multi-user.target" ];
-    serviceConfig.ExecStart = ''
-      ${raas}/bin/raas ${listenAddress}:80
-    '';
-  };
+    let
+      listenIpGroup = builtins.match "([0-9]+\\.[0-9]+\\.[0-9]+\\.[0-9]+)/[0-9]+" args.lanIp;
+      listenAddress = builtins.elemAt listenIpGroup 0;
+    in
+    {
+      enable = true;
+      description = "Web service to apply blocking firewall rules";
+      bindsTo = [ "sys-subsystem-net-devices-lan.device" ];
+      after = [ "systemd-networkd.service" "network-online.target" ];
+      wantedBy = [ "multi-user.target" ];
+      serviceConfig.ExecStart = ''
+        ${raas}/bin/raas ${listenAddress}:80
+      '';
+    };
 
   services.hostapd.enable = !builtins.isNull wifiMac;
   systemd.services.hostapd = ifNotNull wifiMac {
@@ -220,7 +242,7 @@ in
 
   services.hostapd.radios.wifi = ifNotNull wifiMac {
     wifi5.enable = false;
-    wifi4.capabilities = [ "HT40+" "HT40-" "HT20" "SHORT-GI-20" "SHORT-GI-40" "SHORT-GI-80"];
+    wifi4.capabilities = [ "HT40+" "HT40-" "HT20" "SHORT-GI-20" "SHORT-GI-40" "SHORT-GI-80" ];
 
     countryCode = "SE";
     band = "2g";

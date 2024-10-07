@@ -113,14 +113,14 @@ in
           iifname {
                   ${cfg.lanInterfaces}
           } oifname {
-                  "wan",
-          } counter accept comment "Allow trusted LAN to WAN"
+                  "wan", "staging"
+          } counter accept comment "Allow trusted LAN to WAN and staging interface"
 
           iifname "lan" oifname "wifi" counter accept comment "Allow LAN to IoS WiFi"
 
           # Allow established WAN to return
           iifname { "wan", "wifi" } oifname { ${cfg.lanInterfaces} } ct state established,related counter accept comment "Allow established back to LANs"
-          iifname {"wan" } oifname { "lan" } ct mark 1919 accept comment "Allow DNAtted traffic"
+          iifname {"wan", "staging" } oifname { "lan", "wifi"} ct mark 1919 accept comment "Allow DNAtted traffic"
         }
 
         chain srcnat {
