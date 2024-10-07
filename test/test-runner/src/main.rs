@@ -104,7 +104,19 @@ impl Service for TestServer {
 
         cmd.envs(env);
 
-        let child = util::as_unprivileged_user(UNPRIVILEGED_USER, || cmd.spawn())
+        let child = util::as_unprivileged_user(UNPRIVILEGED_USER, || {
+            // Make sure that HOME is set
+            if let Some(home_dir) = dirs::home_dir() {
+                // FIXME: appears to not work: uses root's home dir
+                #[cfg(unix)]
+                cmd.env("HOME", home_dir);
+
+                #[cfg(target_os = "windows")]
+                cmd.env("USERPROFILE", home_dir);
+            }
+
+            cmd.spawn()
+        })
             .map_err(|error| {
                 log::error!("Failed to drop privileges: {error}");
                 test_rpc::Error::Syscall
