@@ -92,6 +92,9 @@ impl Service for TestServer {
         log::debug!("Exec {} (args: {args:?})", path);
 
         let mut cmd = Command::new(&path);
+        cmd.stdout(Stdio::piped());
+        cmd.stderr(Stdio::piped());
+        cmd.stdin(Stdio::piped());
         cmd.args(args);
 
         // Make sure that PATH is updated
@@ -101,7 +104,17 @@ impl Service for TestServer {
 
         cmd.envs(env);
 
-        let output = cmd.output().await.map_err(|error| {
+        let child = util::as_unprivileged_user(UNPRIVILEGED_USER, || cmd.spawn())
+            .map_err(|error| {
+                log::error!("Failed to drop privileges: {error}");
+                test_rpc::Error::Syscall
+            })?
+            .map_err(|error| {
+                log::error!("Failed to spawn {}: {error}", path);
+                test_rpc::Error::Syscall
+            })?;
+
+        let output = child.wait_with_output().await.map_err(|error| {
             log::error!("Failed to exec {}: {error}", path);
             test_rpc::Error::Syscall
         })?;
