@@ -133,8 +133,6 @@ in
         chain dstnat {
           type nat hook prerouting priority dstnat; policy accept;
           ip daddr 8.8.8.8 tcp dport 80 dnat to ${cfg.internetHostOverride};
-          # There are no working bridges in staging. There's one bridge entry in the relay list. Richard has iptabled one (1) bridge to allow connections to the stagemole's API. We can dstnat the one bridge's IP from the relay list to that production bridge to kind of make it work hashtagrectaldentistry
-          ip daddr 85.203.53.200 tcp dport 80 dnat to ${cfg.bridgeOverride};
         }
       }
     '';
