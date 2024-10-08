@@ -103,6 +103,8 @@ in
         chain forward {
           type filter hook forward priority filter; policy drop;
 
+          ip daddr 192.168.0.0/23 drop
+
           # offload established HTTP connections
           # ip protocol { tcp, udp } ct state established flow offload @internetNat counter
 
