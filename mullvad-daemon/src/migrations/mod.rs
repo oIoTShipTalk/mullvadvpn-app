@@ -238,7 +238,7 @@ pub(crate) fn load_seed<P: AsRef<Path>>(seed: P) -> serde_json::Value {
     let seed = std::io::BufReader::new(std::fs::File::open(seed).unwrap_or_else(|_| {
         panic!(
             "{} seed is missing",
-            //seed.as_ref().to_str().unwrap()
+            // seed.as_ref().to_str().unwrap()
             "uxd",
         )
     }));
@@ -441,7 +441,7 @@ mod windows {
 mod test {
     use mullvad_types::settings::Settings;
 
-    use crate::migrations::migrate_settings;
+    use crate::migrations::{migrate_settings, snapshot_dir};
 
     /// Ensure that no migration logic runs for the default settings by checking whether anything
     /// has changed after running the migration code
@@ -455,5 +455,34 @@ mod test {
             .unwrap();
 
         assert_eq!(default_settings, migrated_settings);
+    }
+
+    const DEFAULT_SETTINGS_SNAPSHOT: &str = "snapshot_default_settings";
+
+    /// This test will fail if the serialization of the default settings object changes.
+    /// Review the changes using `cargo-insta` and determine if a settings migration is needed.
+    #[test]
+    fn snapshot_default_settings() {
+        // TODO: This snapshot assert will fail, since the uuid inside the API access methods are
+        // random. We need to make the randomness mockable, for this test to be useful
+        insta::assert_snapshot!(
+            DEFAULT_SETTINGS_SNAPSHOT,
+            serde_json::to_string_pretty(&Settings::default()).unwrap()
+        );
+    }
+
+    /// This test verifies that we can deserialize the above snapshot.
+    #[test]
+    fn test_load_default_settings_snapshot() {
+        let snapshot_dir = snapshot_dir();
+        let default_settings_snap_dir = snapshot_dir.join(format!(
+            "mullvad_daemon__migrations__test__{DEFAULT_SETTINGS_SNAPSHOT}.snap"
+        ));
+        let snap = insta::Snapshot::from_file(&default_settings_snap_dir)
+            .expect("Failed to load snapshot");
+        let default_settings_str = snap.contents_str();
+        serde_json::from_str::<Settings>(default_settings_str)
+            .expect("Failed to parse snapshot of default settings");
+        // TODO: Assert that the deserialized settings object is equal to the default settings
     }
 }
