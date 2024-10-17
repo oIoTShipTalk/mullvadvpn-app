@@ -4,6 +4,7 @@ use super::{
 };
 #[cfg(target_os = "macos")]
 use crate::dns::DnsConfig;
+#[cfg(not(target_os = "android"))]
 use crate::firewall::FirewallPolicy;
 use futures::StreamExt;
 #[cfg(target_os = "macos")]
@@ -70,6 +71,7 @@ impl ErrorState {
         )
     }
 
+    #[cfg(not(target_os = "android"))]
     fn set_firewall_policy(
         shared_values: &mut SharedTunnelStateValues,
     ) -> Result<(), FirewallPolicyError> {
@@ -99,6 +101,12 @@ impl ErrorState {
                     _ => FirewallPolicyError::Generic,
                 }
             })
+    }
+
+    // TODO: Remove completely on Android
+    #[cfg(target_os = "android")]
+    fn set_firewall_policy(_: &mut SharedTunnelStateValues) -> Result<(), FirewallPolicyError> {
+        Ok(())
     }
 
     fn reset_dns(shared_values: &mut SharedTunnelStateValues) {

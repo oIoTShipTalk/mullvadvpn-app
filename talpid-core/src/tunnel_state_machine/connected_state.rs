@@ -3,21 +3,20 @@ use super::{
     EventResult, SharedTunnelStateValues, TunnelCommand, TunnelCommandReceiver, TunnelState,
     TunnelStateTransition,
 };
-use crate::{
-    dns::ResolvedDnsConfig,
-    firewall::FirewallPolicy,
-    tunnel::{TunnelEvent, TunnelMetadata},
-};
+use crate::dns::ResolvedDnsConfig;
+#[cfg(not(target_os = "android"))]
+use crate::firewall::FirewallPolicy;
+use crate::tunnel::{TunnelEvent, TunnelMetadata};
 use futures::{
     channel::{mpsc, oneshot},
     stream::Fuse,
     StreamExt,
 };
-use talpid_types::{
-    net::{AllowedClients, AllowedEndpoint, TunnelParameters},
-    tunnel::{ErrorStateCause, FirewallPolicyError},
-    BoxedError, ErrorExt,
-};
+use talpid_types::net::TunnelParameters;
+#[cfg(not(target_os = "android"))]
+use talpid_types::net::{AllowedClients, AllowedEndpoint};
+use talpid_types::tunnel::{ErrorStateCause, FirewallPolicyError};
+use talpid_types::{BoxedError, ErrorExt};
 
 #[cfg(windows)]
 use crate::tunnel::TunnelMonitor;
@@ -81,6 +80,7 @@ impl ConnectedState {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     fn set_firewall_policy(
         &self,
         shared_values: &mut SharedTunnelStateValues,
@@ -106,6 +106,16 @@ impl ConnectedState {
             })
     }
 
+    /// TODO: Look at removing this
+    #[cfg(target_os = "android")]
+    fn set_firewall_policy(
+        &self,
+        _: &mut SharedTunnelStateValues,
+    ) -> Result<(), FirewallPolicyError> {
+        Ok(())
+    }
+
+    #[cfg(not(target_os = "android"))]
     fn get_firewall_policy(&self, shared_values: &SharedTunnelStateValues) -> FirewallPolicy {
         let endpoint = self.tunnel_parameters.get_next_hop_endpoint();
 

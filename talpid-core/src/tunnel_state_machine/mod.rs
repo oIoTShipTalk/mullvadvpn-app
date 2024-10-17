@@ -11,14 +11,13 @@ use self::{
     disconnecting_state::{AfterDisconnect, DisconnectingState},
     error_state::ErrorState,
 };
+use crate::dns::{DnsConfig, DnsMonitor};
+#[cfg(not(target_os = "android"))]
+use crate::firewall::{Firewall, FirewallArguments, InitialFirewallState};
+use crate::mpsc::Sender;
+use crate::offline;
 #[cfg(any(windows, target_os = "android", target_os = "macos"))]
 use crate::split_tunnel;
-use crate::{
-    dns::{DnsConfig, DnsMonitor},
-    firewall::{Firewall, FirewallArguments, InitialFirewallState},
-    mpsc::Sender,
-    offline,
-};
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 use std::ffi::OsString;
 use talpid_routing::RouteManagerHandle;
@@ -293,24 +292,23 @@ impl TunnelStateMachine {
         let split_tunnel =
             split_tunnel::SplitTunnel::spawn(args.command_tx.clone(), route_manager.clone());
 
-        let fw_args = FirewallArguments {
-            #[cfg(not(target_os = "android"))]
-            initial_state: if args.settings.block_when_disconnected || !args.settings.reset_firewall
-            {
-                InitialFirewallState::Blocked(args.settings.allowed_endpoint.clone())
-            } else {
-                InitialFirewallState::None
-            },
-            // TODO: This really has no effect. In all honesty, we should probably remove the
-            // firewall stub completely.
-            #[cfg(target_os = "android")]
-            initial_state: InitialFirewallState::Blocked(args.settings.allowed_endpoint.clone()),
-            allow_lan: args.settings.allow_lan,
-            #[cfg(target_os = "linux")]
-            fwmark: args.linux_ids.fwmark,
-        };
+        #[cfg(not(target_os = "android"))]
+        let firewall = {
+            let fw_args = FirewallArguments {
+                initial_state: if args.settings.block_when_disconnected
+                    || !args.settings.reset_firewall
+                {
+                    InitialFirewallState::Blocked(args.settings.allowed_endpoint.clone())
+                } else {
+                    InitialFirewallState::None
+                },
+                allow_lan: args.settings.allow_lan,
+                #[cfg(target_os = "linux")]
+                fwmark: args.linux_ids.fwmark,
+            };
 
-        let firewall = Firewall::from_args(fw_args).map_err(Error::InitFirewallError)?;
+            Firewall::from_args(fw_args).map_err(Error::InitFirewallError)?
+        };
 
         let dns_monitor = DnsMonitor::new(
             #[cfg(target_os = "linux")]
@@ -373,6 +371,7 @@ impl TunnelStateMachine {
             #[cfg(target_os = "android")]
             excluded_packages: args.settings.exclude_paths,
             runtime,
+            #[cfg(not(target_os = "android"))]
             firewall,
             dns_monitor,
             route_manager,
@@ -464,6 +463,7 @@ struct SharedTunnelStateValues {
     #[cfg(target_os = "android")]
     excluded_packages: Vec<String>,
     runtime: tokio::runtime::Handle,
+    #[cfg(not(target_os = "android"))]
     firewall: Firewall,
     dns_monitor: DnsMonitor,
     route_manager: RouteManagerHandle,

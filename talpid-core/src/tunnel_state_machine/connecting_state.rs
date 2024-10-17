@@ -3,10 +3,9 @@ use super::{
     SharedTunnelStateValues, TunnelCommand, TunnelCommandReceiver, TunnelState,
     TunnelStateTransition,
 };
-use crate::{
-    firewall::FirewallPolicy,
-    tunnel::{self, TunnelMonitor},
-};
+#[cfg(not(target_os = "android"))]
+use crate::firewall::FirewallPolicy;
+use crate::tunnel::{self, TunnelMonitor};
 use futures::{
     channel::{mpsc, oneshot},
     future::Fuse,
@@ -20,11 +19,11 @@ use std::{
 };
 use talpid_routing::RouteManagerHandle;
 use talpid_tunnel::{tun_provider::TunProvider, TunnelArgs, TunnelEvent, TunnelMetadata};
-use talpid_types::{
-    net::{AllowedClients, AllowedEndpoint, AllowedTunnelTraffic, TunnelParameters},
-    tunnel::{ErrorStateCause, FirewallPolicyError},
-    ErrorExt,
-};
+#[cfg(not(target_os = "android"))]
+use talpid_types::net::{AllowedClients, AllowedEndpoint};
+use talpid_types::net::{AllowedTunnelTraffic, TunnelParameters};
+use talpid_types::tunnel::{ErrorStateCause, FirewallPolicyError};
+use talpid_types::ErrorExt;
 
 #[cfg(target_os = "android")]
 use talpid_tunnel::tun_provider;
@@ -143,6 +142,7 @@ impl ConnectingState {
         }
     }
 
+    #[cfg(not(target_os = "android"))]
     fn set_firewall_policy(
         shared_values: &mut SharedTunnelStateValues,
         params: &TunnelParameters,
@@ -186,6 +186,7 @@ impl ConnectingState {
             #[cfg(target_os = "macos")]
             dns_redirect_port: shared_values.filtering_resolver.listening_port(),
         };
+
         shared_values
             .firewall
             .apply_policy(policy)
@@ -202,6 +203,17 @@ impl ConnectingState {
                     _ => FirewallPolicyError::Generic,
                 }
             })
+    }
+
+    // TODO: Remove completely on Android
+    #[cfg(target_os = "android")]
+    fn set_firewall_policy(
+        _: &mut SharedTunnelStateValues,
+        _: &TunnelParameters,
+        _: &Option<TunnelMetadata>,
+        _: AllowedTunnelTraffic,
+    ) -> Result<(), FirewallPolicyError> {
+        Ok(())
     }
 
     fn start_tunnel(
