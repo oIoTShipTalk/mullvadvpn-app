@@ -19,9 +19,10 @@ use mullvad_daemon::{
 use std::{
     io,
     path::{Path, PathBuf},
-    sync::{Arc, Mutex, Once, OnceLock},
+    sync::{Arc, Once, OnceLock},
 };
 use talpid_types::{android::AndroidContext, ErrorExt};
+use tokio::sync::Mutex;
 
 const LOG_FILENAME: &str = "daemon.log";
 
