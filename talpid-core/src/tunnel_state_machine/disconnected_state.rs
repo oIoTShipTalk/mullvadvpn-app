@@ -19,7 +19,7 @@ impl DisconnectedState {
     pub(super) fn enter(
         shared_values: &mut SharedTunnelStateValues,
         should_reset_firewall: bool,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         #[cfg(target_os = "macos")]
         if let Err(err) = shared_values
             .runtime
@@ -57,9 +57,9 @@ impl DisconnectedState {
 
     fn construct_state_transition(
         shared_values: &mut SharedTunnelStateValues,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         (
-            Box::new(DisconnectedState(())),
+            TunnelState::DisconnectedState(DisconnectedState(())),
             TunnelStateTransition::Disconnected {
                 // Being disconnected and having lockdown mode enabled implies that your internet
                 // access is locked down
@@ -143,24 +143,21 @@ impl DisconnectedState {
             ),
         )
     }
-}
 
-impl TunnelState for DisconnectedState {
-    fn handle_event(
-        self: Box<Self>,
-        runtime: &tokio::runtime::Handle,
+    pub async fn handle_event(
+        self: Self,
         commands: &mut TunnelCommandReceiver,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
         use self::EventConsequence::*;
 
-        match runtime.block_on(commands.next()) {
+        match commands.next().await {
             Some(TunnelCommand::AllowLan(allow_lan, complete_tx)) => {
                 if shared_values.set_allow_lan(allow_lan) {
                     Self::set_firewall_policy(shared_values, false);
                 }
                 let _ = complete_tx.send(());
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             Some(TunnelCommand::AllowEndpoint(endpoint, tx)) => {
                 if shared_values.allowed_endpoint != endpoint {
@@ -168,13 +165,13 @@ impl TunnelState for DisconnectedState {
                     Self::set_firewall_policy(shared_values, false);
                 }
                 let _ = tx.send(());
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             Some(TunnelCommand::Dns(servers, complete_tx)) => {
                 // Same situation as allow LAN above.
                 shared_values.set_dns_config(servers);
                 let _ = complete_tx.send(());
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             Some(TunnelCommand::BlockWhenDisconnected(block_when_disconnected, complete_tx)) => {
                 if shared_values.block_when_disconnected != block_when_disconnected {
@@ -207,41 +204,41 @@ impl TunnelState for DisconnectedState {
                     NewState(Self::construct_state_transition(shared_values))
                 } else {
                     let _ = complete_tx.send(());
-                    SameState(self)
+                    SameState(TunnelState::DisconnectedState(self))
                 }
             }
             Some(TunnelCommand::Connectivity(connectivity)) => {
                 shared_values.connectivity = connectivity;
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             Some(TunnelCommand::Connect) => NewState(ConnectingState::enter(shared_values, 0)),
-            Some(TunnelCommand::Block(_reason)) => SameState(self),
+            Some(TunnelCommand::Block(_reason)) => SameState(TunnelState::DisconnectedState(self)),
             #[cfg(target_os = "android")]
             Some(TunnelCommand::BypassSocket(fd, done_tx)) => {
                 shared_values.bypass_socket(fd, done_tx);
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             #[cfg(windows)]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 shared_values.exclude_paths(paths, result_tx);
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             #[cfg(target_os = "android")]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 shared_values.set_excluded_paths(paths);
                 let _ = result_tx.send(Ok(()));
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             #[cfg(target_os = "macos")]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 let _ = result_tx.send(shared_values.set_exclude_paths(paths).map(|_| ()));
-                SameState(self)
+                SameState(TunnelState::DisconnectedState(self))
             }
             None => {
                 Self::reset_dns(shared_values);
                 Finished
             }
-            Some(_) => SameState(self),
+            Some(_) => SameState(TunnelState::DisconnectedState(self)),
         }
     }
 }

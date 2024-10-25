@@ -56,7 +56,7 @@ impl ConnectingState {
     pub(super) fn enter(
         shared_values: &mut SharedTunnelStateValues,
         retry_attempt: u32,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         #[cfg(target_os = "macos")]
         if let Err(err) = shared_values.dns_monitor.set(
             "lo",
@@ -138,7 +138,7 @@ impl ConnectingState {
                     );
                     let params = connecting_state.tunnel_parameters.clone();
                     (
-                        Box::new(connecting_state),
+                        TunnelState::ConnectingState(connecting_state),
                         TunnelStateTransition::Connecting(params.get_tunnel_endpoint()),
                     )
                 }
@@ -388,17 +388,14 @@ impl ConnectingState {
     }
 
     #[cfg(not(target_os = "android"))]
-    fn reset_firewall(
-        self: Box<Self>,
-        shared_values: &mut SharedTunnelStateValues,
-    ) -> EventConsequence {
+    fn reset_firewall(self: Self, shared_values: &mut SharedTunnelStateValues) -> EventConsequence {
         match Self::set_firewall_policy(
             shared_values,
             &self.tunnel_parameters,
             &self.tunnel_metadata,
             self.allowed_tunnel_traffic.clone(),
         ) {
-            Ok(()) => EventConsequence::SameState(self),
+            Ok(()) => EventConsequence::SameState(TunnelState::ConnectingState(self)),
             Err(error) => self.disconnect(
                 shared_values,
                 AfterDisconnect::Block(ErrorStateCause::SetFirewallPolicyError(error)),
@@ -407,7 +404,7 @@ impl ConnectingState {
     }
 
     fn handle_commands(
-        self: Box<Self>,
+        self: Self,
         command: Option<TunnelCommand>,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
@@ -430,7 +427,7 @@ impl ConnectingState {
                     #[cfg(not(target_os = "android"))]
                     self.reset_firewall(shared_values)
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ConnectingState(self))
                 };
                 let _ = complete_tx.send(());
                 consequence
@@ -452,7 +449,7 @@ impl ConnectingState {
                     }
                 }
                 let _ = tx.send(());
-                SameState(self)
+                SameState(TunnelState::ConnectingState(self))
             }
             Some(TunnelCommand::Dns(servers, complete_tx)) => {
                 let consequence = if shared_values.set_dns_config(servers) {
@@ -468,9 +465,9 @@ impl ConnectingState {
                         }
                     }
                     #[cfg(not(target_os = "android"))]
-                    SameState(self)
+                    SameState(TunnelState::ConnectingState(self))
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ConnectingState(self))
                 };
 
                 let _ = complete_tx.send(());
@@ -479,7 +476,7 @@ impl ConnectingState {
             Some(TunnelCommand::BlockWhenDisconnected(block_when_disconnected, complete_tx)) => {
                 shared_values.block_when_disconnected = block_when_disconnected;
                 let _ = complete_tx.send(());
-                SameState(self)
+                SameState(TunnelState::ConnectingState(self))
             }
             Some(TunnelCommand::Connectivity(connectivity)) => {
                 shared_values.connectivity = connectivity;
@@ -489,7 +486,7 @@ impl ConnectingState {
                         AfterDisconnect::Block(ErrorStateCause::IsOffline),
                     )
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ConnectingState(self))
                 }
             }
             Some(TunnelCommand::Connect) => {
@@ -504,12 +501,12 @@ impl ConnectingState {
             #[cfg(target_os = "android")]
             Some(TunnelCommand::BypassSocket(fd, done_tx)) => {
                 shared_values.bypass_socket(fd, done_tx);
-                SameState(self)
+                SameState(TunnelState::ConnectingState(self))
             }
             #[cfg(windows)]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 shared_values.exclude_paths(paths, result_tx);
-                SameState(self)
+                SameState(TunnelState::ConnectingState(self))
             }
             #[cfg(target_os = "android")]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
@@ -527,7 +524,7 @@ impl ConnectingState {
                     }
                 } else {
                     let _ = result_tx.send(Ok(()));
-                    SameState(self)
+                    SameState(TunnelState::ConnectingState(self))
                 }
             }
             #[cfg(target_os = "macos")]
@@ -558,13 +555,13 @@ impl ConnectingState {
                         return self.disconnect(shared_values, AfterDisconnect::Block(cause));
                     }
                 }
-                SameState(self)
+                SameState(TunnelState::ConnectingState(self))
             }
         }
     }
 
     fn handle_tunnel_events(
-        mut self: Box<Self>,
+        mut self: Self,
         event: Option<(tunnel::TunnelEvent, oneshot::Sender<()>)>,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
@@ -607,7 +604,7 @@ impl ConnectingState {
                     &self.tunnel_metadata,
                     self.allowed_tunnel_traffic.clone(),
                 ) {
-                    Ok(()) => SameState(self),
+                    Ok(()) => SameState(TunnelState::ConnectingState(self)),
                     Err(error) => self.disconnect(
                         shared_values,
                         AfterDisconnect::Block(ErrorStateCause::SetFirewallPolicyError(error)),
@@ -629,7 +626,7 @@ impl ConnectingState {
                 self.allowed_tunnel_traffic = INITIAL_ALLOWED_TUNNEL_TRAFFIC;
                 self.tunnel_metadata = None;
 
-                SameState(self)
+                SameState(TunnelState::ConnectingState(self))
             }
             None => {
                 // The channel was closed
@@ -662,31 +659,17 @@ impl ConnectingState {
             self.retry_attempt + 1,
         ))
     }
-}
 
-#[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
-fn should_retry(error: &tunnel::Error, retry_attempt: u32) -> bool {
-    #[cfg(target_os = "windows")]
-    if error.get_tunnel_device_error().is_some() {
-        return retry_attempt < MAX_ATTEMPT_CREATE_TUN;
-    }
-    error.is_recoverable()
-}
-
-impl TunnelState for ConnectingState {
-    fn handle_event(
-        mut self: Box<Self>,
-        runtime: &tokio::runtime::Handle,
+    pub async fn handle_event(
+        mut self: Self,
         commands: &mut TunnelCommandReceiver,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
-        let result = runtime.block_on(async {
-            futures::select! {
-                command = commands.next() => EventResult::Command(command),
-                event = self.tunnel_events.next() => EventResult::Event(event),
-                result = &mut self.tunnel_close_event => EventResult::Close(result),
-            }
-        });
+        let result = futures::select! {
+            command = commands.next() => EventResult::Command(command),
+            event = self.tunnel_events.next() => EventResult::Event(event),
+            result = &mut self.tunnel_close_event => EventResult::Close(result),
+        };
 
         match result {
             EventResult::Command(command) => self.handle_commands(command, shared_values),
@@ -700,4 +683,13 @@ impl TunnelState for ConnectingState {
             }
         }
     }
+}
+
+#[cfg_attr(not(target_os = "windows"), allow(unused_variables))]
+fn should_retry(error: &tunnel::Error, retry_attempt: u32) -> bool {
+    #[cfg(target_os = "windows")]
+    if error.get_tunnel_device_error().is_some() {
+        return retry_attempt < MAX_ATTEMPT_CREATE_TUN;
+    }
+    error.is_recoverable()
 }

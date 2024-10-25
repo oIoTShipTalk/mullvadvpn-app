@@ -45,7 +45,7 @@ impl ConnectedState {
         tunnel_parameters: TunnelParameters,
         tunnel_close_event: TunnelCloseEvent,
         tunnel_close_tx: oneshot::Sender<()>,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         let connected_state = ConnectedState {
             metadata,
             tunnel_events,
@@ -75,7 +75,7 @@ impl ConnectedState {
             )
         } else {
             (
-                Box::new(connected_state),
+                TunnelState::ConnectedState(connected_state),
                 TunnelStateTransition::Connected(tunnel_endpoint),
             )
         }
@@ -244,7 +244,7 @@ impl ConnectedState {
     }
 
     fn handle_commands(
-        self: Box<Self>,
+        self: Self,
         command: Option<TunnelCommand>,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
@@ -267,7 +267,7 @@ impl ConnectedState {
                     #[cfg(not(target_os = "android"))]
                     {
                         match self.set_firewall_policy(shared_values) {
-                            Ok(()) => SameState(self),
+                            Ok(()) => SameState(TunnelState::ConnectedState(self)),
                             Err(error) => self.disconnect(
                                 shared_values,
                                 AfterDisconnect::Block(ErrorStateCause::SetFirewallPolicyError(
@@ -277,7 +277,7 @@ impl ConnectedState {
                         }
                     }
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ConnectedState(self))
                 };
 
                 let _ = complete_tx.send(());
@@ -286,7 +286,7 @@ impl ConnectedState {
             Some(TunnelCommand::AllowEndpoint(endpoint, tx)) => {
                 shared_values.allowed_endpoint = endpoint;
                 let _ = tx.send(());
-                SameState(self)
+                SameState(TunnelState::ConnectedState(self))
             }
             Some(TunnelCommand::Dns(servers, complete_tx)) => {
                 let consequence = if shared_values.set_dns_config(servers) {
@@ -313,7 +313,7 @@ impl ConnectedState {
                         }
 
                         match self.set_dns(shared_values) {
-                            Ok(()) => SameState(self),
+                            Ok(()) => SameState(TunnelState::ConnectedState(self)),
                             Err(error) => {
                                 log::error!(
                                     "{}",
@@ -327,7 +327,7 @@ impl ConnectedState {
                         }
                     }
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ConnectedState(self))
                 };
                 let _ = complete_tx.send(());
                 consequence
@@ -335,7 +335,7 @@ impl ConnectedState {
             Some(TunnelCommand::BlockWhenDisconnected(block_when_disconnected, complete_tx)) => {
                 shared_values.block_when_disconnected = block_when_disconnected;
                 let _ = complete_tx.send(());
-                SameState(self)
+                SameState(TunnelState::ConnectedState(self))
             }
             Some(TunnelCommand::Connectivity(connectivity)) => {
                 shared_values.connectivity = connectivity;
@@ -345,7 +345,7 @@ impl ConnectedState {
                         AfterDisconnect::Block(ErrorStateCause::IsOffline),
                     )
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ConnectedState(self))
                 }
             }
             Some(TunnelCommand::Connect) => {
@@ -360,12 +360,12 @@ impl ConnectedState {
             #[cfg(target_os = "android")]
             Some(TunnelCommand::BypassSocket(fd, done_tx)) => {
                 shared_values.bypass_socket(fd, done_tx);
-                SameState(self)
+                SameState(TunnelState::ConnectedState(self))
             }
             #[cfg(windows)]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 shared_values.exclude_paths(paths, result_tx);
-                SameState(self)
+                SameState(TunnelState::ConnectedState(self))
             }
             #[cfg(target_os = "android")]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
@@ -383,7 +383,7 @@ impl ConnectedState {
                     }
                 } else {
                     let _ = result_tx.send(Ok(()));
-                    SameState(self)
+                    SameState(TunnelState::ConnectedState(self))
                 }
             }
             #[cfg(target_os = "macos")]
@@ -409,13 +409,13 @@ impl ConnectedState {
                         return self.disconnect(shared_values, AfterDisconnect::Block(cause));
                     }
                 }
-                SameState(self)
+                SameState(TunnelState::ConnectedState(self))
             }
         }
     }
 
     fn handle_tunnel_events(
-        self: Box<Self>,
+        self: Self,
         event: Option<(TunnelEvent, oneshot::Sender<()>)>,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
@@ -425,7 +425,7 @@ impl ConnectedState {
             Some((TunnelEvent::Down, _)) | None => {
                 self.disconnect(shared_values, AfterDisconnect::Reconnect(0))
             }
-            Some(_) => SameState(self),
+            Some(_) => SameState(TunnelState::ConnectedState(self)),
         }
     }
 
@@ -447,22 +447,17 @@ impl ConnectedState {
         Self::reset_routes(shared_values);
         NewState(ConnectingState::enter(shared_values, 0))
     }
-}
 
-impl TunnelState for ConnectedState {
-    fn handle_event(
-        mut self: Box<Self>,
-        runtime: &tokio::runtime::Handle,
+    pub async fn handle_event(
+        mut self: Self,
         commands: &mut TunnelCommandReceiver,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
-        let result = runtime.block_on(async {
-            futures::select! {
-                command = commands.next() => EventResult::Command(command),
-                event = self.tunnel_events.next() => EventResult::Event(event),
-                result = &mut self.tunnel_close_event => EventResult::Close(result),
-            }
-        });
+        let result = futures::select! {
+            command = commands.next() => EventResult::Command(command),
+            event = self.tunnel_events.next() => EventResult::Event(event),
+            result = &mut self.tunnel_close_event => EventResult::Close(result),
+        };
 
         match result {
             EventResult::Command(command) => self.handle_commands(command, shared_values),

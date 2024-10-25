@@ -22,7 +22,7 @@ impl ErrorState {
     pub(super) fn enter(
         shared_values: &mut SharedTunnelStateValues,
         block_reason: ErrorStateCause,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         #[cfg(windows)]
         if let Err(error) = shared_values.split_tunnel.set_tunnel_addresses(None) {
             log::error!(
@@ -63,7 +63,7 @@ impl ErrorState {
         };
 
         (
-            Box::new(ErrorState {
+            TunnelState::ErrorState(ErrorState {
                 block_reason: block_reason.clone(),
             }),
             TunnelStateTransition::Error(talpid_tunnel::ErrorState::new(
@@ -109,19 +109,16 @@ impl ErrorState {
             log::error!("{}", error.display_chain_with_msg("Unable to reset DNS"));
         }
     }
-}
 
-impl TunnelState for ErrorState {
     #[cfg_attr(not(target_os = "macos"), allow(unused_mut))]
-    fn handle_event(
-        self: Box<Self>,
-        runtime: &tokio::runtime::Handle,
+    pub async fn handle_event(
+        self: Self,
         commands: &mut TunnelCommandReceiver,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
         use self::EventConsequence::*;
 
-        match runtime.block_on(commands.next()) {
+        match commands.next().await {
             Some(TunnelCommand::AllowLan(allow_lan, complete_tx)) => {
                 let consequence = if shared_values.set_allow_lan(allow_lan) {
                     #[cfg(target_os = "android")]
@@ -136,10 +133,10 @@ impl TunnelState for ErrorState {
                     #[cfg(not(target_os = "android"))]
                     {
                         let _ = Self::set_firewall_policy(shared_values);
-                        SameState(self)
+                        SameState(TunnelState::ErrorState(self))
                     }
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ErrorState(self))
                 };
 
                 let _ = complete_tx.send(());
@@ -160,7 +157,7 @@ impl TunnelState for ErrorState {
                     }
                 }
                 let _ = tx.send(());
-                SameState(self)
+                SameState(TunnelState::ErrorState(self))
             }
             Some(TunnelCommand::Dns(servers, complete_tx)) => {
                 let consequence = if shared_values.set_dns_config(servers) {
@@ -168,15 +165,15 @@ impl TunnelState for ErrorState {
                     {
                         // DNS is blocked in the error state, so only update tun config
                         shared_values.prepare_tun_config(true);
-                        SameState(self)
+                        SameState(TunnelState::ErrorState(self))
                     }
                     #[cfg(not(target_os = "android"))]
                     {
                         let _ = Self::set_firewall_policy(shared_values);
-                        SameState(self)
+                        SameState(TunnelState::ErrorState(self))
                     }
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ErrorState(self))
                 };
                 let _ = complete_tx.send(());
                 consequence
@@ -184,7 +181,7 @@ impl TunnelState for ErrorState {
             Some(TunnelCommand::BlockWhenDisconnected(block_when_disconnected, complete_tx)) => {
                 shared_values.block_when_disconnected = block_when_disconnected;
                 let _ = complete_tx.send(());
-                SameState(self)
+                SameState(TunnelState::ErrorState(self))
             }
             Some(TunnelCommand::Connectivity(connectivity)) => {
                 shared_values.connectivity = connectivity;
@@ -194,7 +191,7 @@ impl TunnelState for ErrorState {
                     Self::reset_dns(shared_values);
                     NewState(ConnectingState::enter(shared_values, 0))
                 } else {
-                    SameState(self)
+                    SameState(TunnelState::ErrorState(self))
                 }
             }
             Some(TunnelCommand::Connect) => {
@@ -214,7 +211,7 @@ impl TunnelState for ErrorState {
             #[cfg(target_os = "android")]
             Some(TunnelCommand::BypassSocket(fd, done_tx)) => {
                 shared_values.bypass_socket(fd, done_tx);
-                SameState(self)
+                SameState(TunnelState::ErrorState(self))
             }
             #[cfg(target_os = "android")]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
@@ -226,17 +223,17 @@ impl TunnelState for ErrorState {
                 } else {
                     let _ = result_tx.send(Ok(()));
                 }
-                SameState(self)
+                SameState(TunnelState::ErrorState(self))
             }
             #[cfg(windows)]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 shared_values.exclude_paths(paths, result_tx);
-                SameState(self)
+                SameState(TunnelState::ErrorState(self))
             }
             #[cfg(target_os = "macos")]
             Some(TunnelCommand::SetExcludedApps(result_tx, paths)) => {
                 let _ = result_tx.send(shared_values.set_exclude_paths(paths).map(|_| ()));
-                SameState(self)
+                SameState(TunnelState::ErrorState(self))
             }
         }
     }

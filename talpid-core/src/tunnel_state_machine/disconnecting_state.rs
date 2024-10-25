@@ -18,12 +18,12 @@ impl DisconnectingState {
         tunnel_close_tx: oneshot::Sender<()>,
         tunnel_close_event: TunnelCloseEvent,
         after_disconnect: AfterDisconnect,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         let _ = tunnel_close_tx.send(());
         let action_after_disconnect = after_disconnect.action();
 
         (
-            Box::new(DisconnectingState {
+            TunnelState::DisconnectingState(DisconnectingState {
                 tunnel_close_event,
                 after_disconnect,
             }),
@@ -32,7 +32,7 @@ impl DisconnectingState {
     }
 
     fn handle_commands(
-        mut self: Box<Self>,
+        mut self: Self,
         command: Option<TunnelCommand>,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
@@ -210,14 +210,14 @@ impl DisconnectingState {
             },
         };
 
-        EventConsequence::SameState(self)
+        EventConsequence::SameState(TunnelState::DisconnectingState(self))
     }
 
     fn after_disconnect(
         self,
         block_reason: Option<ErrorStateCause>,
         shared_values: &mut SharedTunnelStateValues,
-    ) -> (Box<dyn TunnelState>, TunnelStateTransition) {
+    ) -> (TunnelState, TunnelStateTransition) {
         if let Some(reason) = block_reason {
             return ErrorState::enter(shared_values, reason);
         }
@@ -230,12 +230,9 @@ impl DisconnectingState {
             }
         }
     }
-}
 
-impl TunnelState for DisconnectingState {
-    fn handle_event(
-        mut self: Box<Self>,
-        runtime: &tokio::runtime::Handle,
+    pub async fn handle_event(
+        mut self: Self,
         commands: &mut TunnelCommandReceiver,
         shared_values: &mut SharedTunnelStateValues,
     ) -> EventConsequence {
@@ -250,12 +247,10 @@ impl TunnelState for DisconnectingState {
                 EventResult::Close(Ok(None))
             }
         } else {
-            runtime.block_on(async {
-                futures::select! {
-                    command = commands.next() => EventResult::Command(command),
-                    result = &mut self.tunnel_close_event => EventResult::Close(result),
-                }
-            })
+            futures::select! {
+                command = commands.next() => EventResult::Command(command),
+                result = &mut self.tunnel_close_event => EventResult::Close(result),
+            }
         };
 
         match result {

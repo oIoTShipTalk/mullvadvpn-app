@@ -231,7 +231,7 @@ enum EventResult {
 /// to. Every time it successfully advances the state machine a `TunnelStateTransition` is emitted
 /// by the stream.
 struct TunnelStateMachine {
-    current_state: Option<Box<dyn TunnelState>>,
+    current_state: Option<TunnelState>,
     commands: TunnelCommandReceiver,
     shared_values: SharedTunnelStateValues,
 }
@@ -405,7 +405,37 @@ impl TunnelStateMachine {
         let runtime = self.shared_values.runtime.clone();
 
         while let Some(state) = self.current_state.take() {
-            match state.handle_event(&runtime, &mut self.commands, &mut self.shared_values) {
+            let consequence = runtime.block_on(async {
+                match state {
+                    TunnelState::DisconnectedState(state) => {
+                        state
+                            .handle_event(&mut self.commands, &mut self.shared_values)
+                            .await
+                    }
+                    TunnelState::DisconnectingState(state) => {
+                        state
+                            .handle_event(&mut self.commands, &mut self.shared_values)
+                            .await
+                    }
+                    TunnelState::ConnectingState(state) => {
+                        state
+                            .handle_event(&mut self.commands, &mut self.shared_values)
+                            .await
+                    }
+                    TunnelState::ConnectedState(state) => {
+                        state
+                            .handle_event(&mut self.commands, &mut self.shared_values)
+                            .await
+                    }
+                    TunnelState::ErrorState(state) => {
+                        state
+                            .handle_event(&mut self.commands, &mut self.shared_values)
+                            .await
+                    }
+                }
+            });
+
+            match consequence {
                 NewState((state, transition)) => {
                     self.current_state = Some(state);
 
@@ -654,35 +684,22 @@ impl SharedTunnelStateValues {
     }
 }
 
+enum TunnelState {
+    DisconnectedState(DisconnectedState),
+    DisconnectingState(DisconnectingState),
+    ConnectingState(ConnectingState),
+    ConnectedState(ConnectedState),
+    ErrorState(ErrorState),
+}
+
 /// Asynchronous result of an attempt to progress a state.
 enum EventConsequence {
     /// Transition to a new state.
-    NewState((Box<dyn TunnelState>, TunnelStateTransition)),
+    NewState((TunnelState, TunnelStateTransition)),
     /// An event was received, but it was ignored by the state so no transition is performed.
-    SameState(Box<dyn TunnelState>),
+    SameState(TunnelState),
     /// The state machine has finished its execution.
     Finished,
-}
-
-/// Trait that contains the method all states should implement to handle an event and advance the
-/// state machine.
-trait TunnelState: Send {
-    /// Main state function.
-    ///
-    /// This is state exit point. It consumes itself and returns the next state to advance to when
-    /// it has completed, or itself if it wants to ignore a received event or if no events were
-    /// ready to be received. See [`EventConsequence`] for more details.
-    ///
-    /// An implementation can handle events from many sources, but it should also handle command
-    /// events received through the provided `commands` stream.
-    ///
-    /// [`EventConsequence`]: enum.EventConsequence.html
-    fn handle_event(
-        self: Box<Self>,
-        runtime: &tokio::runtime::Handle,
-        commands: &mut TunnelCommandReceiver,
-        shared_values: &mut SharedTunnelStateValues,
-    ) -> EventConsequence;
 }
 
 /// Handle used to control the tunnel state machine.
