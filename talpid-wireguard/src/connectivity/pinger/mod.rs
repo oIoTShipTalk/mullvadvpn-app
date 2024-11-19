@@ -17,6 +17,7 @@ pub trait Pinger: Send {
 }
 
 /// Create a new pinger
+/// TODO: Rename
 pub fn new_pinger(
     addr: std::net::Ipv4Addr,
     #[cfg(any(target_os = "linux", target_os = "macos"))] interface_name: String,
