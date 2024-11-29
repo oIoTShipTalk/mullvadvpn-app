@@ -11,6 +11,7 @@ rust-version.workspace = true
 workspace = true
 
 [dependencies]
+boringtun = "0.5.3"
 thiserror = { workspace = true }
 futures = { workspace = true }
 hex = "0.4"
@@ -31,7 +32,7 @@ surge-ping = "0.8.0"
 rand_chacha = "0.3.1"
 
 [target.'cfg(not(windows))'.dependencies]
-wireguard-go-rs = { path = "../wireguard-go-rs"}
+wireguard-go-rs = { path = "../wireguard-go-rs" }
 
 [target.'cfg(target_os="android")'.dependencies]
 duct = "0.13"
@@ -90,4 +91,4 @@ features = [
 
 [dev-dependencies]
 proptest = { workspace = true }
-tokio = { workspace = true, features = [ "test-util" ] }
+tokio = { workspace = true, features = ["test-util"] }
