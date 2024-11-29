@@ -343,6 +343,8 @@ impl WireguardMonitor {
             })
             .await
             .unwrap()?;
+            // HACK: Sleep instead of conn check
+            // std::thread::sleep(std::time::Duration::from_millis(100));
 
             // Add any default route(s) that may exist.
             args.route_manager
@@ -367,6 +369,7 @@ impl WireguardMonitor {
             })
             .await
             .unwrap();
+            // std::mem::forget(connectivity_monitor);
 
             Err::<Infallible, CloseMsg>(CloseMsg::PingErr)
         };
