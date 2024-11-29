@@ -53,8 +53,11 @@ impl UnixTunProvider {
         let mut tunnel_device = {
             #[allow(unused_mut)]
             let mut builder = TunnelDeviceBuilder::default();
-            #[cfg(target_os = "linux")]
-            builder.enable_packet_information();
+
+            // FIXME: boringtun doesn't like this, it prepends 4 bytes before the ip header of each packet read
+            //#[cfg(target_os = "linux")]
+            //builder.enable_packet_information();
+
             #[cfg(target_os = "linux")]
             if let Some(ref name) = self.config.name {
                 builder.name(name);
