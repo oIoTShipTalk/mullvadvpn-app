@@ -188,30 +188,7 @@ async fn reconfigure_tunnel(
     close_obfs_sender: sync_mpsc::Sender<CloseMsg>,
     tun_provider: &Arc<Mutex<TunProvider>>,
 ) -> Result<Config, CloseMsg> {
-    let mut obfs_guard = obfuscator.lock().await;
-    if let Some(obfuscator_handle) = obfs_guard.take() {
-        obfuscator_handle.abort();
-        *obfs_guard = super::obfuscation::apply_obfuscation_config(
-            &mut config,
-            close_obfs_sender,
-            #[cfg(target_os = "android")]
-            tun_provider.clone(),
-        )
-        .await
-        .map_err(CloseMsg::ObfuscatorFailed)?;
-    }
-    {
-        let mut shared_tunnel = tunnel.lock().await;
-        let tunnel = shared_tunnel.take().expect("tunnel was None");
-
-        let updated_tunnel = tunnel
-            .set_config(&config)
-            .map_err(Error::TunnelError)
-            .map_err(CloseMsg::SetupError)?;
-
-        *shared_tunnel = Some(updated_tunnel);
-    }
-    Ok(config)
+    todo!("reconfigure_tunnel")
 }
 
 #[cfg(not(target_os = "android"))]

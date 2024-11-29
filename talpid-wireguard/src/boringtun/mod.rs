@@ -5,13 +5,19 @@ use std::{
     sync::{Arc, Mutex},
 };
 
+#[cfg(target_os = "linux")]
+use crate::config::MULLVAD_INTERFACE_NAME;
 use crate::{
-    config::{Config, MULLVAD_INTERFACE_NAME},
+    config::Config,
     stats::{Stats, StatsMap},
-    wireguard_go::get_tunnel_for_userspace,
-    Tunnel, TunnelError,
+    //    wireguard_go::get_tunnel_for_userspace,
+    Tunnel,
+    TunnelError,
 };
+// #[cfg(not(any(target_os = "windows", target_os = "android", target_os = "ios")))]
 use boringtun::device::{DeviceConfig, DeviceHandle};
+// #[cfg(target_os = "android")]
+// use boringtun::jni::create_new_tunnel;
 use ipnetwork::IpNetwork;
 use nix::unistd::{close, write};
 use talpid_tunnel::tun_provider::Tun;
@@ -38,22 +44,6 @@ impl BoringTun {
         #[cfg(daita)] _resource_dir: &Path,
     ) -> Result<Self, TunnelError> {
         log::info!("BoringTun::start_tunnel");
-        // log::info!("writing wireguard-config to boringtun");
-        // let wg_config_str = config.to_userspace_format();
-        // let (config_pipe_rx, config_pipe_tx) = nix::unistd::pipe().expect("failed to create pipe");
-
-        // let mut wg_config_bytes = dbg!(wg_config_str.to_str().unwrap()).as_bytes();
-        // while !wg_config_bytes.is_empty() {
-        //     let n = write(config_pipe_tx, wg_config_bytes).expect("write failed");
-
-        //     if n == 0 {
-        //         panic!("didn't write??");
-        //     }
-
-        //     wg_config_bytes = &wg_config_bytes[n..];
-        // }
-        // close(config_pipe_tx).unwrap();
-
         log::info!("calling get_tunnel_for_userspace");
 
         // TODO: investigate timing bug when creating tun device?
@@ -69,7 +59,9 @@ impl BoringTun {
         let boringtun_config = DeviceConfig {
             n_threads: 4,
             use_connected_socket: false, // TODO: what is this?
-            use_multi_queue: false,      // TODO: what is this?
+            #[cfg(target_os = "linux")]
+            use_multi_queue: false, // TODO: what is this?
+            #[cfg(target_os = "linux")]
             uapi_fd: -1,
             config_string: Some(config_string),
         };
@@ -91,6 +83,55 @@ impl BoringTun {
             tunnel_device: tun,
         })
     }
+
+    /*
+        #[cfg(target_os = "android)]
+        pub fn start_tunnel(
+            config: &Config,
+            _log_path: Option<&Path>,
+            tun_provider: Arc<Mutex<TunProvider>>,
+            routes: impl Iterator<Item = IpNetwork>,
+            #[cfg(daita)] _resource_dir: &Path,
+        ) -> Result<Self, TunnelError> {
+            log::info!("BoringTun::start_tunnel");
+            log::info!("calling get_tunnel_for_userspace");
+
+            // TODO: investigate timing bug when creating tun device?
+            // Device or resource busy
+            let (tun, _tunnel_fd) = get_tunnel_for_userspace(tun_provider, config, routes)?;
+
+            log::info!("creating pipe");
+
+            let config_string = format!(
+                "set=1\n{}",
+                config.to_userspace_format().to_string_lossy().to_string()
+            );
+            let boringtun_config = DeviceConfig {
+                n_threads: 4,
+                use_connected_socket: false, // TODO: what is this?
+                use_multi_queue: false,      // TODO: what is this?
+                uapi_fd: -1,
+                config_string: Some(config_string),
+            };
+
+            log::info!("passing tunnel dev to boringtun");
+            let device_handle: DeviceHandle =
+                DeviceHandle::new(&_tunnel_fd.to_string(), boringtun_config)
+                    .map_err(TunnelError::BoringTunDevice)?;
+
+            // TODO: remove null byte in a better way
+            // TODO: make sure all the bytes are written
+            // TODO: can we use a rust type instead of a raw fd?
+
+            log::info!("done! boringtun time!?");
+
+            Ok(Self {
+                device_handle,
+                config: config.clone(),
+                tunnel_device: tun,
+            })
+        }
+    */
 }
 
 impl Tunnel for BoringTun {
@@ -133,4 +174,42 @@ impl Tunnel for BoringTun {
         log::info!("Haha no");
         Ok(())
     }
+}
+
+pub fn get_tunnel_for_userspace(
+    tun_provider: Arc<Mutex<TunProvider>>,
+    config: &Config,
+    routes: impl Iterator<Item = IpNetwork>,
+) -> Result<(Tun, RawFd), TunnelError> {
+    let mut last_error = None;
+    let mut tun_provider = tun_provider.lock().unwrap();
+
+    let tun_config = tun_provider.config_mut();
+    #[cfg(target_os = "linux")]
+    {
+        tun_config.name = Some(MULLVAD_INTERFACE_NAME.to_string());
+    }
+    tun_config.addresses = config.tunnel.addresses.clone();
+    tun_config.ipv4_gateway = config.ipv4_gateway;
+    tun_config.ipv6_gateway = config.ipv6_gateway;
+    tun_config.routes = routes.collect();
+    tun_config.mtu = config.mtu;
+
+    for _ in 1..=MAX_PREPARE_TUN_ATTEMPTS {
+        let tunnel_device = tun_provider
+            .open_tun()
+            .map_err(TunnelError::SetupTunnelDevice)?;
+
+        match nix::unistd::dup(tunnel_device.as_raw_fd()) {
+            Ok(fd) => return Ok((tunnel_device, fd)),
+            #[cfg(not(target_os = "macos"))]
+            Err(error @ nix::errno::Errno::EBADFD) => last_error = Some(error),
+            Err(error @ nix::errno::Errno::EBADF) => last_error = Some(error),
+            Err(error) => return Err(TunnelError::FdDuplicationError(error)),
+        }
+    }
+
+    Err(TunnelError::FdDuplicationError(
+        last_error.expect("Should be collected in loop"),
+    ))
 }

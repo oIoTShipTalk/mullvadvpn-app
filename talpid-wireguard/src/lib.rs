@@ -42,8 +42,8 @@ mod ephemeral;
 mod logging;
 mod obfuscation;
 mod stats;
-#[cfg(wireguard_go)]
-mod wireguard_go;
+//#[cfg(wireguard_go)]
+//mod wireguard_go;
 #[cfg(target_os = "linux")]
 pub(crate) mod wireguard_kernel;
 #[cfg(windows)]
@@ -52,14 +52,14 @@ mod wireguard_nt;
 #[cfg(not(target_os = "android"))]
 mod mtu_detection;
 
-#[cfg(wireguard_go)]
-use self::wireguard_go::WgGoTunnel;
+//#[cfg(wireguard_go)]
+//use self::wireguard_go::WgGoTunnel;
 
 // On android we only have Wireguard Go tunnel
 #[cfg(not(target_os = "android"))]
 type TunnelType = Box<dyn Tunnel>;
 #[cfg(target_os = "android")]
-type TunnelType = WgGoTunnel;
+type TunnelType = Box<BoringTun>;
 
 type Result<T> = std::result::Result<T, Error>;
 type EventCallback = Box<dyn (Fn(TunnelEvent) -> BoxFuture<'static, ()>) + Send + Sync + 'static>;
@@ -439,17 +439,25 @@ impl WireguardMonitor {
                 .map_err(Error::ConnectivityMonitorError)?
                 .with_cancellation();
 
-        let tunnel = Self::open_wireguard_go_tunnel(
+        // No, open boringtunnel >:)
+        // let tunnel = Self::open_wireguard_go_tunnel(
+        //     &config,
+        //     log_path,
+        //     args.resource_dir,
+        //     args.tun_provider.clone(),
+        //     // In case we should negotiate an ephemeral peer, we should specify via AllowedIPs
+        //     // that we only allows traffic to/from the gateway. This is only needed on Android
+        //     // since we lack a firewall there.
+        //     should_negotiate_ephemeral_peer,
+        //     connectivity_check,
+        // )?;
+        let tunnel = Self::open_boringtun_tunnel(
             &config,
             log_path,
             args.resource_dir,
             args.tun_provider.clone(),
-            // In case we should negotiate an ephemeral peer, we should specify via AllowedIPs
-            // that we only allows traffic to/from the gateway. This is only needed on Android
-            // since we lack a firewall there.
-            should_negotiate_ephemeral_peer,
-            connectivity_check,
-        )?;
+        )
+        .map(Box::new)?;
 
         let iface_name = tunnel.get_interface_name();
         let tunnel = Arc::new(AsyncMutex::new(Some(tunnel)));
@@ -498,16 +506,16 @@ impl WireguardMonitor {
             args.on_event.clone()(TunnelEvent::Up(metadata)).await;
 
             // HACK: The tunnel does not need the connectivity::Check anymore, so lets take it
-            let connectivity_check = {
-                let mut tunnel_lock = tunnel.lock().await;
-                let Some(tunnel) = tunnel_lock.as_mut() else {
-                    log::debug!("Tunnel is no longer running");
-                    return Err::<Infallible, CloseMsg>(CloseMsg::PingErr);
-                };
-                tunnel
-                    .take_checker()
-                    .expect("connectivity checker unexpectedly dropped")
-            };
+            // let connectivity_check = {
+            //     let mut tunnel_lock = tunnel.lock().await;
+            //     let Some(tunnel) = tunnel_lock.as_mut() else {
+            //         log::debug!("Tunnel is no longer running");
+            //         return Err::<Infallible, CloseMsg>(CloseMsg::PingErr);
+            //     };
+            //    tunnel
+            //        .take_checker()
+            //        .expect("connectivity checker unexpectedly dropped")
+            // };
 
             tokio::task::spawn_blocking(move || {
                 let tunnel = Arc::downgrade(&tunnel);
@@ -728,73 +736,73 @@ impl WireguardMonitor {
         }
     }
 
-    /// Configure and start a Wireguard-go tunnel.
-    #[cfg(wireguard_go)]
-    fn open_wireguard_go_tunnel(
-        config: &Config,
-        log_path: Option<&Path>,
-        #[cfg(daita)] resource_dir: &Path,
-        tun_provider: Arc<Mutex<TunProvider>>,
-        #[cfg(target_os = "android")] gateway_only: bool,
-        #[cfg(target_os = "android")] connectivity_check: connectivity::Check<
-            connectivity::Cancellable,
-        >,
-    ) -> Result<WgGoTunnel> {
-        let routes = config
-            .get_tunnel_destinations()
-            .flat_map(Self::replace_default_prefixes);
+    // /// Configure and start a Wireguard-go tunnel.
+    // #[cfg(wireguard_go)]
+    // fn open_wireguard_go_tunnel(
+    //     config: &Config,
+    //     log_path: Option<&Path>,
+    //     #[cfg(daita)] resource_dir: &Path,
+    //     tun_provider: Arc<Mutex<TunProvider>>,
+    //     #[cfg(target_os = "android")] gateway_only: bool,
+    //     #[cfg(target_os = "android")] connectivity_check: connectivity::Check<
+    //         connectivity::Cancellable,
+    //     >,
+    // ) -> Result<WgGoTunnel> {
+    //     let routes = config
+    //         .get_tunnel_destinations()
+    //         .flat_map(Self::replace_default_prefixes);
 
-        #[cfg(not(target_os = "android"))]
-        let tunnel = WgGoTunnel::start_tunnel(
-            config,
-            log_path,
-            tun_provider,
-            routes,
-            #[cfg(daita)]
-            resource_dir,
-        )
-        .map_err(Error::TunnelError)?;
+    //     #[cfg(not(target_os = "android"))]
+    //     let tunnel = WgGoTunnel::start_tunnel(
+    //         config,
+    //         log_path,
+    //         tun_provider,
+    //         routes,
+    //         #[cfg(daita)]
+    //         resource_dir,
+    //     )
+    //     .map_err(Error::TunnelError)?;
 
-        // Android uses multihop implemented in Mullvad's wireguard-go fork. When negotiating
-        // with an ephemeral peer, this multihop strategy require us to restart the tunnel
-        // every time we want to reconfigure it. As such, we will actually start a multihop
-        // tunnel at a later stage, after we have negotiated with the first ephemeral peer.
-        // At this point, when the tunnel *is first started*, we establish a regular, singlehop
-        // tunnel to where the ephemeral peer resides.
-        //
-        // Refer to `docs/architecture.md` for details on how to use multihop + PQ.
-        #[cfg(target_os = "android")]
-        let config = Self::patch_allowed_ips(config, gateway_only);
+    //     // Android uses multihop implemented in Mullvad's wireguard-go fork. When negotiating
+    //     // with an ephemeral peer, this multihop strategy require us to restart the tunnel
+    //     // every time we want to reconfigure it. As such, we will actually start a multihop
+    //     // tunnel at a later stage, after we have negotiated with the first ephemeral peer.
+    //     // At this point, when the tunnel *is first started*, we establish a regular, singlehop
+    //     // tunnel to where the ephemeral peer resides.
+    //     //
+    //     // Refer to `docs/architecture.md` for details on how to use multihop + PQ.
+    //     #[cfg(target_os = "android")]
+    //     let config = Self::patch_allowed_ips(config, gateway_only);
 
-        #[cfg(target_os = "android")]
-        let tunnel = if let Some(exit_peer) = &config.exit_peer {
-            WgGoTunnel::start_multihop_tunnel(
-                &config,
-                exit_peer,
-                log_path,
-                tun_provider,
-                routes,
-                #[cfg(daita)]
-                resource_dir,
-                connectivity_check,
-            )
-            .map_err(Error::TunnelError)?
-        } else {
-            WgGoTunnel::start_tunnel(
-                #[allow(clippy::needless_borrow)]
-                &config,
-                log_path,
-                tun_provider,
-                routes,
-                #[cfg(daita)]
-                resource_dir,
-                connectivity_check,
-            )
-            .map_err(Error::TunnelError)?
-        };
+    //     #[cfg(target_os = "android")]
+    //     let tunnel = if let Some(exit_peer) = &config.exit_peer {
+    //         WgGoTunnel::start_multihop_tunnel(
+    //             &config,
+    //             exit_peer,
+    //             log_path,
+    //             tun_provider,
+    //             routes,
+    //             #[cfg(daita)]
+    //             resource_dir,
+    //             connectivity_check,
+    //         )
+    //         .map_err(Error::TunnelError)?
+    //     } else {
+    //         WgGoTunnel::start_tunnel(
+    //             #[allow(clippy::needless_borrow)]
+    //             &config,
+    //             log_path,
+    //             tun_provider,
+    //             routes,
+    //             #[cfg(daita)]
+    //             resource_dir,
+    //             connectivity_check,
+    //         )
+    //         .map_err(Error::TunnelError)?
+    //     };
 
-        Ok(tunnel)
-    }
+    //     Ok(tunnel)
+    // }
 
     /// Configure and start a boringtun tunnel.
     fn open_boringtun_tunnel(
@@ -811,7 +819,6 @@ impl WireguardMonitor {
             .get_tunnel_destinations()
             .flat_map(Self::replace_default_prefixes);
 
-        #[cfg(not(target_os = "android"))]
         let tunnel = boringtun::BoringTun::start_tunnel(
             config,
             log_path,
