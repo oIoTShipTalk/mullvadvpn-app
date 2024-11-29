@@ -1130,6 +1130,10 @@ pub enum TunnelError {
     #[cfg(target_os = "android")]
     #[error("Tunnel seemingly does not serve any traffic")]
     TunnelUp,
+
+    /// BoringTun device error
+    #[error("Boringtun: {0:?}")]
+    BoringTunDevice(::boringtun::device::Error),
 }
 
 #[cfg(target_os = "linux")]

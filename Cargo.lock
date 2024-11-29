@@ -392,6 +392,7 @@ dependencies = [
  "ip_network",
  "ip_network_table",
  "libc",
+ "log",
  "nix 0.24.3",
  "parking_lot",
  "rand_core 0.6.4",
