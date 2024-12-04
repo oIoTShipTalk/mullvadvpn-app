@@ -12,6 +12,8 @@ mod ssh;
 mod tart;
 mod update;
 mod util;
+#[cfg(target_os = "macos")]
+mod utm;
 
 #[async_trait::async_trait]
 pub trait VmInstance {
@@ -53,6 +55,14 @@ pub async fn run(config: &Config, name: &str) -> Result<Box<dyn VmInstance>> {
         ) as Box<_>,
         #[cfg(not(target_os = "macos"))]
         VmType::Tart => return Err(anyhow::anyhow!("Failed to run Tart VM on a non-macOS host")),
+        #[cfg(target_os = "macos")]
+        VmType::Utm => Box::new(
+            utm::run(config, vm_conf)
+                .await
+                .context("Failed to run UTM VM")?,
+        ) as Box<_>,
+        #[cfg(not(target_os = "macos"))]
+        VmType::Utm => return Err(anyhow::anyhow!("Failed to run UTM VM on a non-macOS host")),
     };
 
     log::debug!("Started instance of \"{name}\" vm");

@@ -250,6 +250,8 @@ pub enum VmType {
     Qemu,
     /// Tart VM
     Tart,
+    /// UTM VM
+    Utm,
 }
 
 #[derive(clap::ValueEnum, Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq)]
