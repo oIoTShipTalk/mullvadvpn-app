@@ -218,6 +218,20 @@ Windows Defender ocasionally kills the `test-runner` because it believes it to b
 Now you are done! If the VM was configured correctly, `test-manager` will be able to run the test suite using the new OS image.
 Now you should [add your new VM to the test-manager config](./test-manager/README.md#configuring-test-manager)
 
+## Windows 11 ARM
+
+TODO
+
+* Create a Windows 11 VM in UTM.
+* In the UTM VM config, add a serial device with the following settings:
+  * Mode: Pseudo-TTY Device
+  * Target: Automatic Serial Device
+* In the UTM network config, go to advanced settings and set "DHCP Start" and "DHCP End" to
+  `192.168.64.2`.
+  NOTE: This is temporary since QEMU guest tools aren't supported on Windows Arm yet.
+* Follow the the setup for the "Windows 11" section, but skip the parts for setting up
+  `test-runner`.
+
 # macOS 🚧
 
 _Instructions for building an OS image based on macOS are still under construction._
