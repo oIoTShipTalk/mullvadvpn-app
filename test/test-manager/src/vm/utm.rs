@@ -14,7 +14,24 @@ use super::VmInstance;
 pub struct UtmInstance {
     pty_path: String,
     ip_addr: IpAddr,
+    machine: String, // VM name as seen by utmctl
     utm_task: Option<tokio::task::JoinHandle<()>>,
+}
+
+impl Drop for UtmInstance {
+    fn drop(&mut self) {
+        // Kill VM on drop
+        let machine = self.machine.clone();
+        let script = r#"tell application "UTM"
+    stop vm by force
+    end tell"#;
+
+        tokio::task::spawn(async move {
+            run_osascript(&machine, script)
+                .await
+                .expect("Failed to run osascript when dropping UTM VM instance");
+        });
+    }
 }
 
 #[async_trait::async_trait]
@@ -51,7 +68,8 @@ pub async fn run(config: &Config, vm_config: &VmConfig) -> Result<UtmInstance> {
         log::error!("Mounting disks is not yet supported")
     }
 
-    start_disposable_vm(&vm_config.image_path)
+    let machine = vm_config.image_path.clone();
+    start_disposable_vm(&machine)
         .await
         .context("Start UTM VM")?;
 
@@ -88,12 +106,11 @@ pub async fn run(config: &Config, vm_config: &VmConfig) -> Result<UtmInstance> {
     // IP. The reasons for this are poorly understood.
     crate::vm::network::macos::configure_tunnel().await?;
 
-    // TODO: force kill vm when stopping
-
     Ok(UtmInstance {
         pty_path,
         ip_addr,
         utm_task: Some(utm_task),
+        machine,
     })
 }
 
