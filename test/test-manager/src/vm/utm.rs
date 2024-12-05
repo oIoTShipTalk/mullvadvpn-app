@@ -1,15 +1,10 @@
 //! UTM backend for running VMs
 
-use crate::config::{self, Config, VmConfig};
 use anyhow::{bail, Context, Result};
-use std::{
-    net::{IpAddr, Ipv4Addr},
-    process::Stdio,
-};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio::process::Command;
+use std::net::{IpAddr, Ipv4Addr};
 
-use super::VmInstance;
+use crate::config::{self, Config, VmConfig};
+use crate::vm::VmInstance;
 
 pub struct UtmInstance {
     pty_path: String,
@@ -26,11 +21,8 @@ impl Drop for UtmInstance {
     stop vm by force
     end tell"#;
 
-        tokio::task::spawn(async move {
-            run_osascript(&machine, script)
-                .await
-                .expect("Failed to run osascript when dropping UTM VM instance");
-        });
+        run_osascript_blocking(&machine, script)
+            .expect("Failed to run osascript when dropping UTM VM instance");
     }
 }
 
@@ -162,11 +154,22 @@ async fn get_pty_path(machine: &str) -> Result<String> {
 }
 
 async fn run_osascript(machine: &str, script: &str) -> Result<String> {
+    let machine_ = machine.to_owned();
+    let script_ = script.to_owned();
+    tokio::task::spawn_blocking(move || run_osascript_blocking(&machine_, &script_))
+        .await
+        .expect("Failed to await tokio joinhandle")
+}
+
+/// Same as [run_osascript], but using blockign IO.
+fn run_osascript_blocking(machine: &str, script: &str) -> Result<String> {
+    use std::io::{Read, Write};
+    use std::process::{Command, Stdio};
+
     let mut cmd = Command::new("/usr/bin/osascript");
     cmd.stdin(Stdio::piped())
         .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .kill_on_drop(true);
+        .stderr(Stdio::piped());
 
     let mut child = cmd.spawn().context("Failed to run osascript")?;
     let mut stdin = child.stdin.take().unwrap();
@@ -181,7 +184,6 @@ end tell"#
             )
             .as_bytes(),
         )
-        .await
         .context("Failed to write osascript")?;
 
     drop(stdin);
@@ -192,16 +194,14 @@ end tell"#
     let mut buffer = vec![];
     stdout
         .read_to_end(&mut buffer)
-        .await
         .context("Failed to read stdout")?;
 
     let mut errbuffer = vec![];
     stderr
         .read_to_end(&mut errbuffer)
-        .await
         .context("Failed to read stderr")?;
 
-    let status = child.wait().await.context("Failed to wait on osascript")?;
+    let status = child.wait().context("Failed to wait on osascript")?;
 
     if !status.success() {
         bail!(
