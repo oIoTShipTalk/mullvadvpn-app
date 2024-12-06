@@ -94,7 +94,7 @@ fn blocking_ssh(
 
     // Directory that receives the payload. Any directory that the SSH user has access to.
     let remote_temp_dir = match os_type {
-        OsType::Windows => r"c:\temp",
+        OsType::Windows => r"c:",
         OsType::Macos | OsType::Linux => r"/tmp/",
     };
 
