@@ -46,7 +46,7 @@ duct = "0.13"
 
 [target.'cfg(target_os = "macos")'.dependencies]
 async-trait = "0.1"
-pfctl = "0.6.1"
+pfctl = { git = "https://github.com/mullvad/pfctl-rs", rev = "2134037df7e0e22b8bcb0c0acfa2a97690db624a" }
 system-configuration = "0.5.1"
 hickory-proto = { workspace = true }
 hickory-server = { workspace = true, features = ["resolver"] }

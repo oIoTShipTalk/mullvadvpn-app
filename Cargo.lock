@@ -2014,9 +2014,9 @@ checksum = "8f518f335dce6725a761382244631d86cf0ccb2863413590b31338feb467f9c3"
 
 [[package]]
 name = "ipnetwork"
-version = "0.20.0"
+version = "0.21.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bf466541e9d546596ee94f9f69590f89473455f88372423e0008fc1a7daf100e"
+checksum = "cf370abdafd54d13e54a620e8c3e1145f28e46cc9d704bc6d94414559df41763"
 dependencies = [
  "serde",
 ]
@@ -3314,8 +3314,7 @@ dependencies = [
 [[package]]
 name = "pfctl"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a44e65c0d3523afa79a600a3964c3ac0fabdabe2d7c68da624b2bb0b441b9d61"
+source = "git+https://github.com/mullvad/pfctl-rs?rev=2134037df7e0e22b8bcb0c0acfa2a97690db624a#2134037df7e0e22b8bcb0c0acfa2a97690db624a"
 dependencies = [
  "derive_builder",
  "ioctl-sys 0.8.0",
