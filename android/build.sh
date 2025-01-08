@@ -46,7 +46,7 @@ if [[ "$GRADLE_BUILD_TYPE" == "release" ]]; then
     fi
 fi
 
-if [[ "$BUILD_TYPE" == "release" ]]; then
+if [[ "$GRADLE_BUILD_TYPE" == "release" ]]; then
     if [[ "$PRODUCT_VERSION" == *"-dev-"* ]]; then
         GRADLE_TASKS+=(createPlayDevmoleReleaseDistApk createPlayStagemoleReleaseDistApk)
         BUNDLE_TASKS+=(createPlayDevmoleReleaseDistBundle createPlayStagemoleReleaseDistBundle)
@@ -70,9 +70,11 @@ else
     exit 2
 fi
 
+$GRADLE_CMD --version
+
 $GRADLE_CMD --console plain clean
 
-$GRADLE_CMD --console plain "${GRADLE_TASKS[@]}"
+RUSTFLAGS="$(cargo run -q --bin remap-path-prefix)" $GRADLE_CMD --console plain "${GRADLE_TASKS[@]}"
 
 if [[ "$BUILD_BUNDLE" == "yes" ]]; then
     $GRADLE_CMD --console plain "${BUNDLE_TASKS[@]}"
