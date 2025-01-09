@@ -30,6 +30,9 @@ pub enum Error {
     ReadPcap(#[source] io::Error),
 }
 
+// Maximum capture size should be 100mb
+const MAX_CAPTURE_SIZE: u32 = 1024 * 1024 * 100;
+
 #[derive(Default)]
 pub struct Capture {
     captures: BTreeMap<uuid::Uuid, Context>,
@@ -106,6 +109,7 @@ impl Capture {
                 }
             });
 
+            let mut capture_size = 0;
             loop {
                 tokio::select! {
                     _ = &mut stop_rx => {
@@ -117,6 +121,11 @@ impl Capture {
                         };
                         let (header, data) = result.map_err(Error::StreamFailed)?;
                         let _ = pcap_tx.send((header, data));
+                        capture_size += header.caplen;
+
+                        if capture_size >= MAX_CAPTURE_SIZE {
+                            break;
+                        }
                     }
                 }
             }
