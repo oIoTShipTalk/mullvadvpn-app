@@ -136,7 +136,7 @@ function newConfig() {
       signAndEditExecutable: false,
       artifactName: 'MullvadVPN-${version}_${arch}.${ext}',
       publisherName: 'Mullvad VPN AB',
-      icon: distAssets('icon.ico'),
+      icon: distAssets('icon.png'),
       extraResources: [
         { from: distAssets(path.join('${env.DIST_SUBDIR}', 'mullvad.exe')), to: '.' },
         {
