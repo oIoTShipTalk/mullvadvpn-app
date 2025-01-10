@@ -461,7 +461,7 @@ class ApplicationMain
 
     // For some reason playwright hangs on Linux if we call `window.setIcon`. Since the icon isn't
     // needed for the tests this block has been disabled when running e2e tests.
-    if (process.platform === 'linux' && process.env.CI !== 'e2e') {
+    if ((process.platform === 'linux' || process.platform === "windows")  && process.env.CI !== 'e2e') {
       try {
         const icon = await findIconPath('mullvad-vpn', ['png']);
         if (icon) {
