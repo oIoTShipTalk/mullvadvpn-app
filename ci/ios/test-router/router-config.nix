@@ -238,6 +238,7 @@ in
       '';
     };
 
+  # WiFi is only enabled if a MAC address is supplied
   services.hostapd.enable = !builtins.isNull wifiMac;
   systemd.services.hostapd = ifNotNull wifiMac {
     bindsTo = [ "sys-subsystem-net-devices-wifi.device" ];
