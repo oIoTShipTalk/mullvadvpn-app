@@ -277,5 +277,10 @@ in
     };
   };
 
-
+  services.shadowsocks = {
+    enable = true;
+    port = 443;
+    encryptionMethod = "aes-256-gcm";
+    password = "mullvad";
+  };
 }

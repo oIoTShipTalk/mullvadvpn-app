@@ -133,6 +133,8 @@ in
         chain dstnat {
           type nat hook prerouting priority dstnat; policy accept;
           ip daddr 8.8.8.8 tcp dport 80 dnat to ${cfg.internetHostOverride};
+          # host of the bridge IP address
+          ip daddr 85.203.53.200 tcp dport 443 dnat to ${cfg.internetHostOverride};
         }
       }
     '';
