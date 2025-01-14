@@ -66,11 +66,11 @@ function Focus(props: IFocusProps, ref: React.Ref<IFocusHandle>) {
 export default React.memo(React.forwardRef(Focus));
 
 interface IFocusFallbackProps {
-  children: React.ReactElement;
+  children: React.ReactElement<{ className?: string }>;
 }
 
 export function FocusFallback(props: IFocusFallbackProps) {
   return React.cloneElement(props.children, {
     className: `${props.children.props.className} ${FOCUS_FALLBACK_CLASS}`,
-  });
+  } as Partial<React.HTMLAttributes<unknown>>);
 }

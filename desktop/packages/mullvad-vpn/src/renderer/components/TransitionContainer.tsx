@@ -98,12 +98,12 @@ export default class TransitionContainer extends React.Component<IProps, IState>
   private isCycling = false;
   private isTransitioning = false;
 
-  private currentContentRef: React.MutableRefObject<HTMLDivElement | null> =
+  private currentContentRef: React.RefObject<HTMLDivElement | null> =
     React.createRef<HTMLDivElement>();
-  private nextContentRef: React.MutableRefObject<HTMLDivElement | null> =
+  private nextContentRef: React.RefObject<HTMLDivElement | null> =
     React.createRef<HTMLDivElement>();
   // The item that should trigger the cycle to finish in onTransitionEnd
-  private transitioningItemRef?: React.RefObject<HTMLDivElement>;
+  private transitioningItemRef?: React.RefObject<HTMLDivElement | null>;
 
   public componentDidUpdate(prevProps: IProps) {
     if (this.props.children !== prevProps.children) {

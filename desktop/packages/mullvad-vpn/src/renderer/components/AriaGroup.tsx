@@ -102,12 +102,16 @@ interface IAriaElementProps {
 
 export function AriaControlled(props: IAriaElementProps) {
   const { controlledId } = useContext(AriaControlContext);
-  return React.cloneElement(props.children, { id: controlledId });
+  return React.cloneElement(props.children, { id: controlledId } as Partial<
+    React.HTMLAttributes<unknown>
+  >);
 }
 
 export function AriaControls(props: IAriaElementProps) {
   const { controlledId } = useContext(AriaControlContext);
-  return React.cloneElement(props.children, { 'aria-controls': controlledId });
+  return React.cloneElement(props.children, { 'aria-controls': controlledId } as Partial<
+    React.HTMLAttributes<unknown>
+  >);
 }
 
 export function AriaInput(props: IAriaElementProps) {
@@ -118,7 +122,7 @@ export function AriaInput(props: IAriaElementProps) {
       {React.cloneElement(props.children, {
         id: inputId,
         'aria-labelledby': labelId,
-      })}
+      } as Partial<React.HTMLAttributes<unknown>>)}
     </AriaDescribed>
   );
 }
@@ -134,7 +138,7 @@ export function AriaLabel(props: IAriaElementProps) {
   return React.cloneElement(props.children, {
     id: labelId,
     htmlFor: inputId,
-  });
+  } as Partial<React.HTMLAttributes<unknown>>);
 }
 
 export function AriaDescribed(props: IAriaElementProps) {
@@ -143,7 +147,7 @@ export function AriaDescribed(props: IAriaElementProps) {
   return React.cloneElement(props.children, {
     id: describedId,
     'aria-describedby': descriptionId,
-  });
+  } as Partial<React.HTMLAttributes<unknown>>);
 }
 
 export function AriaDescription(props: IAriaElementProps) {
@@ -156,10 +160,12 @@ export function AriaDescription(props: IAriaElementProps) {
 
   return React.cloneElement(props.children, {
     id: descriptionId,
-  });
+  } as Partial<React.HTMLAttributes<unknown>>);
 }
 
 export function AriaDetails(props: IAriaElementProps) {
   const { describedId } = useContext(AriaDescriptionContext);
-  return React.cloneElement(props.children, { 'aria-details': describedId });
+  return React.cloneElement(props.children, { 'aria-details': describedId } as Partial<
+    React.HTMLAttributes<unknown>
+  >);
 }
