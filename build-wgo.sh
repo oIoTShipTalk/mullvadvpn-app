@@ -34,5 +34,5 @@ echo "*******************"
 echo "Commit hash: $commit_hash ($repo_state)"
 go version
 cargo version
-md5sum ../target/aarch64-linux-android/release/build/wireguard-go-rs*/out/*
+md5sum ../build/target/aarch64-linux-android*/release/*
 echo "*******************"
