@@ -17,4 +17,4 @@ git diff-files
 build_command=("./build-wgo.sh")
 
 set -x
-exec "$SCRIPT_DIR/container-run.sh" android "${build_command[@]}" "$@"
+exec "$SCRIPT_DIR/container-run.sh" android "${build_command[@]}" "true" "$@"
