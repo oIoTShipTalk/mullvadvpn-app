@@ -45,6 +45,7 @@ members = [
     "tunnel-obfuscation",
     "wireguard-go-rs",
     "windows-installer",
+    "repro-test",
 ]
 # The default members may exclude packages that cannot be built for all targets, or that do not always
 # need to be built
@@ -85,6 +86,7 @@ default-members = [
     "talpid-wireguard",
     "tunnel-obfuscation",
     "wireguard-go-rs",
+    "repro-test"
 ]
 
 # Keep all lints in sync with `test/Cargo.toml`
