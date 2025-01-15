@@ -8,8 +8,10 @@ set -eu
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
-echo "Commit hash"
-git --no-pager log -1 --format=%H
+commit_hash="$(git --no-pager log -1 --format=%H)"
+repo_state="$(test -z "$(git status --porcelain)" && echo "CLEAN" || echo "DIRTY")"
+
+echo "Commit hash: $commit_hash ($repo_state)"
 
 echo "Clean cargo"
 cargo clean
@@ -29,8 +31,7 @@ echo "Build"
 cargo build --release --target aarch64-linux-android
 
 echo "*******************"
-echo "Commit hash"
-git --no-pager log -1 --format=%H
+echo "Commit hash: $commit_hash ($repo_state)"
 go version
 cargo version
 md5sum ../target/aarch64-linux-android/release/build/wireguard-go-rs*/out/*
