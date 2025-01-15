@@ -9,7 +9,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$SCRIPT_DIR"
 
 echo "Commit hash"
-git log -1 --format=%H
+git --no-pager log -1 --format=%H
 
 echo "Clean cargo"
 cargo clean
@@ -26,11 +26,12 @@ echo "Clean"
 # make clean
 
 echo "Build"
-cargo build
+cargo build --release --target aarch64-linux-android
 
 echo "*******************"
-git log -1 --format=%H
+echo "Commit hash"
+git --no-pager log -1 --format=%H
 go version
 cargo version
-md5sum libwg/wireguard-go/libmaybenot.a
+md5sum ../target/aarch64-linux-android/release/build/wireguard-go-rs*/out/*
 echo "*******************"
