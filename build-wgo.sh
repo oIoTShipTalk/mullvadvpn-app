@@ -31,7 +31,7 @@ echo "Clean"
 # make clean
 
 echo "Build"
-cargo build --release --target aarch64-linux-android
+cargo build --locked --release --target aarch64-linux-android
 
 echo "*******************"
 echo "Commit hash: $commit_hash ($repo_state)"
