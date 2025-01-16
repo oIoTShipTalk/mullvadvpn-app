@@ -29,11 +29,12 @@ echo "Clean"
 cargo clean
 
 echo "Build"
-mkdir -p /build/build/libdest
+PATH_REMAPS=$(cargo run -q --bin remap-path-prefix)
+mkdir -p $SCRIPT_DIR/build/libdest
 pushd wireguard-go-rs/libwg/wireguard-go/maybenot
-export RUSTFLAGS="-C metadata=maybenot-ffi --remap-path-prefix /root/.cargo=/CARGO_HOME --remap-path-prefix /root/.rustup=/RUSTUP_HOME --remap-path-prefix $SCRIPT_DIR=/SOURCE_DIR"
-cargo build --target-dir /cargo-target/target --release --target aarch64-linux-android
-cp /cargo-target/target/aarch64-linux-android/release/libmaybenot_ffi.a /build/build/libdest/libmaybenot.a
+export RUSTFLAGS="-C metadata=maybenot-ffi $PATH_REMAPS"
+cargo build --target-dir $SCRIPT_DIR/cargo-target/target --release --target aarch64-linux-android
+cp $SCRIPT_DIR/cargo-target/target/aarch64-linux-android/release/libmaybenot_ffi.a $SCRIPT_DIR/build/libdest/libmaybenot.a
 popd
 
 echo "*******************"
@@ -43,5 +44,5 @@ echo "OS info: $OSTYPE (container=$IS_USING_CONTAINER_SCRIPT)"
 go version
 cargo version
 echo "OUTPUT:"
-md5sum /build/build/libdest/*
+md5sum $SCRIPT_DIR/build/libdest/*
 echo "*******************"
