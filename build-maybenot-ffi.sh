@@ -26,12 +26,12 @@ echo "Current rust version"
 cargo version
 
 echo "Clean"
-# make clean
+cargo clean
 
 echo "Build"
 mkdir -p /build/build/libdest
 pushd wireguard-go-rs/libwg/wireguard-go/maybenot
-export RUSTFLAGS="-C metadata=maybenot-ffi --remap-path-prefix /root/.cargo=/CARGO_HOME --remap-path-prefix /root/.rustup=/RUSTUP_HOME --remap-path-prefix /build=/SOURCE_DIR" 
+export RUSTFLAGS="-C metadata=maybenot-ffi --remap-path-prefix /root/.cargo=/CARGO_HOME --remap-path-prefix /root/.rustup=/RUSTUP_HOME --remap-path-prefix $SCRIPT_DIR=/SOURCE_DIR"
 cargo build --target-dir /cargo-target/target --release --target aarch64-linux-android
 cp /cargo-target/target/aarch64-linux-android/release/libmaybenot_ffi.a /build/build/libdest/libmaybenot.a
 popd
