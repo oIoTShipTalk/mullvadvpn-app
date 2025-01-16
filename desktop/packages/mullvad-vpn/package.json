@@ -66,7 +66,7 @@
     "gulp-sourcemaps": "^3.0.0",
     "gulp-typescript": "^6.0.0-alpha.1",
     "mocha": "^10.8.2",
-    "playwright": "^1.41.1",
+    "playwright": "^1.49.1",
     "postject": "^1.0.0-alpha.6",
     "sinon": "^14.0.1",
     "tsc-watch": "^5.0.3",
