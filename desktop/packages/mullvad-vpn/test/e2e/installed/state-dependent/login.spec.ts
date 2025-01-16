@@ -127,6 +127,14 @@ test('App should log in to expired account', async () => {
   await expect(subtitle).toHaveText('Enter your account number');
 
   await loginInput.fill(accountNumber);
+  const currentTime = Date.now();
+
+  const accountGetOutput = execSync('mullvad account get -v');
+  console.log('Test state', {
+    accountNumber,
+    accountGetOutput,
+    currentTime,
+  });
 
   expect(
     await util.waitForNavigation(async () => {
