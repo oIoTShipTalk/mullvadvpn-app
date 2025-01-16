@@ -30,7 +30,11 @@ echo "Clean"
 
 echo "Build"
 mkdir -p /build/build/libdest
-make --directory wireguard-go-rs/libwg/wireguard-go/maybenot/crates/maybenot-ffi/ DESTINATION=/build/build/libdest TARGET=aarch64-linux-android
+pushd wireguard-go-rs/libwg/wireguard-go/maybenot
+export RUSTFLAGS="-C metadata=maybenot-ffi --remap-path-prefix /root/.cargo=/CARGO_HOME --remap-path-prefix /root/.rustup=/RUSTUP_HOME --remap-path-prefix /build=/SOURCE_DIR" 
+cargo build --target-dir /cargo-target/target --release --target aarch64-linux-android
+cp /cargo-target/target/aarch64-linux-android/release/libmaybenot_ffi.a /build/build/libdest/libmaybenot.a
+popd
 
 echo "*******************"
 echo "Build using: build-maybenot-ffi.sh"
