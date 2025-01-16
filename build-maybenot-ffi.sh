@@ -33,8 +33,13 @@ PATH_REMAPS=$(cargo run -q --bin remap-path-prefix)
 mkdir -p $SCRIPT_DIR/build/libdest
 pushd wireguard-go-rs/libwg/wireguard-go/maybenot
 export RUSTFLAGS="-C metadata=maybenot-ffi $PATH_REMAPS"
-cargo build --target-dir $SCRIPT_DIR/cargo-target/target --release --target aarch64-linux-android
-cp $SCRIPT_DIR/cargo-target/target/aarch64-linux-android/release/libmaybenot_ffi.a $SCRIPT_DIR/build/libdest/libmaybenot.a
+if [ "$IS_USING_CONTAINER_SCRIPT" = "false" ]; then
+    TARGET_DIR="$SCRIPT_DIR/target"
+else
+    TARGET_DIR="$SCRIPT_DIR/cargo-target/target"
+fi
+cargo build --target-dir $TARGET_DIR --release --target aarch64-linux-android
+cp $TARGET_DIR/aarch64-linux-android/release/libmaybenot_ffi.a $SCRIPT_DIR/build/libdest/libmaybenot.a
 popd
 
 echo "*******************"
