@@ -132,7 +132,7 @@ index 37b367218..717de09b9 100644
      fn hash<S: hash::Hasher>(&self, state: &mut S) {
 -        self.0.inner.name.hash(state);
 -        self.0.inner.version.hash(state);
-+        println!("PackageIdStableHash:");
++        eprintln!("PackageIdStableHash:");
 +        dbg!(&self.0.inner.name).hash(state);
 +        dbg!(&self.0.inner.version).hash(state);
          self.0.inner.source_id.stable_hash(self.1, state);
