@@ -28,7 +28,7 @@ cargo version
 cd repro-test
 
 echo "Clean"
-# make clean
+cargo clean
 
 echo "Build"
 cargo build --locked --release --target aarch64-linux-android
