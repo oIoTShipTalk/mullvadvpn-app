@@ -34,7 +34,7 @@ import {
 } from './NavigationBar';
 import SettingsHeader, { HeaderTitle } from './SettingsHeader';
 
-const StyledInfoIcon = styled(InfoIcon)({
+const StyledInfoButton = styled(InfoButton)({
   marginRight: Spacings.spacing5,
 });
 

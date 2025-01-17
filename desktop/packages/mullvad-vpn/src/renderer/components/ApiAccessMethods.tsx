@@ -36,14 +36,12 @@ import {
 import SettingsHeader, { HeaderSubTitle, HeaderTitle } from './SettingsHeader';
 import { SmallButton, SmallButtonColor } from './SmallButton';
 
-const StyledContextMenuButton = styled(Cell.Icon)({
-  alignItems: 'center',
-  justifyContent: 'center',
-  marginRight: Spacings.spacing3,
+const StyledMethodInfoButton = styled(InfoButton)({
+  marginRight: Spacings.spacing1,
 });
 
-const StyledMethodInfoButton = styled(InfoButton)({
-  marginRight: Spacings.spacing4,
+const StyledMethodTriggerImage = styled(ImageView)({
+  marginRight: Spacings.spacing1,
 });
 
 const StyledNameLabel = styled(Cell.Label)({
@@ -309,10 +307,12 @@ function ApiAccessMethod(props: ApiAccessMethodProps) {
       )}
       <ContextMenuContainer>
         <ContextMenuTrigger>
-          <StyledContextMenuButton
+          <StyledMethodTriggerImage
             source="icon-more"
             tintColor={colors.white}
             tintHoverColor={colors.white80}
+            height={36}
+            width={36}
           />
         </ContextMenuTrigger>
         <ContextMenu items={menuItems} align="right" />
