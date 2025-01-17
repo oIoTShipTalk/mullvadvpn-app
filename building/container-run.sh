@@ -54,6 +54,7 @@ fi
 
 set -x
 exec "$CONTAINER_RUNNER" run --rm -it \
+    --hostname "mullvad-build" \
     -v "$REPO_DIR:$REPO_MOUNT_TARGET:Z" \
     -v "$CARGO_TARGET_VOLUME_NAME:/cargo-target:Z" \
     -v "$CARGO_REGISTRY_VOLUME_NAME:/root/.cargo/registry:Z" \
