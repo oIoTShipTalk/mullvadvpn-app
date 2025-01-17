@@ -82,8 +82,7 @@ RUN apt-get update -y && apt-get install -y \
     unzip \
     ca-certificates-java \
     openjdk-17-jdk \
-    tidy \
-    && rm -rf /var/lib/apt/lists/*
+    tidy
 
 # Set default java version
 RUN update-alternatives --set java  /usr/lib/jvm/java-17-openjdk-amd64/bin/java
@@ -116,6 +115,15 @@ RUN patch -p1 -f -N -r- -d /usr/local/go < /tmp/goruntime-boottime-over-monotoni
 
 # Add rust targets
 RUN rustup target add x86_64-linux-android i686-linux-android aarch64-linux-android armv7-linux-androideabi
+
+# Override cargo 0.85.0 with a patched version
+RUN apt-get install -y openssl libssl-dev
+COPY cargo-debug-logging-v2.patch /tmp/cargo-debug-logging-v2.patch
+RUN git clone --depth 1 --branch 0.85.0 https://github.com/rust-lang/cargo.git && \
+    git --git-dir ./cargo/.git --work-tree ./cargo apply --directory cargo /tmp/cargo-debug-logging-v2.patch && \
+    cd cargo && \
+    cargo build --release
+RUN cp /cargo-target/target/release/cargo /cargo
 
 # Install cbindgen to address maybenot.h (checked in) sometimes needing to be
 # re-generated due to how `make` looks at last-modifications while git neither
