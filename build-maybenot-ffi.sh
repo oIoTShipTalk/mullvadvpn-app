@@ -17,19 +17,19 @@ echo "Commit hash: $commit_hash ($repo_state)"
 echo "OS info: $OSTYPE (using container script=$IS_USING_CONTAINER_SCRIPT)"
 
 echo "Clean cargo"
-cargo clean
+/cargo clean
 
 echo "Starting build of wireguard-go-rs"
 echo "Current go version"
 go version
 echo "Current rust version"
-cargo version
+/cargo version
 
 echo "Clean"
-cargo clean
+/cargo clean
 
 echo "Build"
-PATH_REMAPS=$(cargo run -q --bin remap-path-prefix)
+PATH_REMAPS=$(/cargo run -q --bin remap-path-prefix)
 mkdir -p $SCRIPT_DIR/build/libdest
 pushd wireguard-go-rs/libwg/wireguard-go/maybenot
 export RUSTFLAGS="-C metadata=maybenot-ffi $PATH_REMAPS"
@@ -39,7 +39,7 @@ else
     TARGET_DIR="$SCRIPT_DIR/cargo-target/target"
 fi
 export RUSTC_WRAPPER="$SCRIPT_DIR/rustc-wrapper.sh"
-cargo build --target-dir $TARGET_DIR --release --target aarch64-linux-android --locked -j 1
+/cargo build --target-dir $TARGET_DIR --release --target aarch64-linux-android --locked -j 1
 cp $TARGET_DIR/aarch64-linux-android/release/libmaybenot_ffi.a $SCRIPT_DIR/build/libdest/libmaybenot.a
 popd
 
