@@ -14,7 +14,7 @@ commit_hash="$(git --no-pager log -1 --format=%H || echo gitless)"
 repo_state="$(test -z "$(git status --porcelain)" && echo "CLEAN" || echo "DIRTY")"
 
 echo "Commit hash: $commit_hash ($repo_state)"
-echo "OS info: $OSTYPE (container=$IS_USING_CONTAINER_SCRIPT)"
+echo "OS info: $OSTYPE (using container script=$IS_USING_CONTAINER_SCRIPT)"
 
 echo "Clean cargo"
 cargo clean
