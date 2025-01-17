@@ -38,7 +38,7 @@ if [ "$IS_USING_CONTAINER_SCRIPT" = "false" ]; then
 else
     TARGET_DIR="$SCRIPT_DIR/cargo-target/target"
 fi
-cargo build --target-dir $TARGET_DIR --release --target aarch64-linux-android --locked
+cargo build --target-dir $TARGET_DIR --release --target aarch64-linux-android --locked -j 1
 cp $TARGET_DIR/aarch64-linux-android/release/libmaybenot_ffi.a $SCRIPT_DIR/build/libdest/libmaybenot.a
 popd
 
