@@ -10,7 +10,7 @@ cd "$SCRIPT_DIR"
 
 IS_USING_CONTAINER_SCRIPT=${1:-"false"}
 
-commit_hash="$(git --no-pager log -1 --format=%H)"
+commit_hash="$(git --no-pager log -1 --format=%H || echo gitless)"
 repo_state="$(test -z "$(git status --porcelain)" && echo "CLEAN" || echo "DIRTY")"
 
 echo "Commit hash: $commit_hash ($repo_state)"
