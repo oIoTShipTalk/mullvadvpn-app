@@ -220,7 +220,7 @@ class MullvadVpnService : TalpidVpnService() {
     }
 
     private fun Context.prepareFiles() {
-        extractAndOverwriteIfAssetMoreRecent(RELAY_LIST_ASSET_NAME)
+        //extractAndOverwriteIfAssetMoreRecent(RELAY_LIST_ASSET_NAME)
     }
 
     companion object {

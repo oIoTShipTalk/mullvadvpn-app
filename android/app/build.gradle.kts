@@ -237,7 +237,7 @@ android {
         createDistBundle.dependsOn("bundle$capitalizedVariantName")
 
         // Ensure we have relay list ready before merging assets.
-        tasks["merge${capitalizedVariantName}Assets"].dependsOn(tasks["generateRelayList"])
+        // tasks["merge${capitalizedVariantName}Assets"].dependsOn(tasks["generateRelayList"])
 
         // Ensure that we have all the JNI libs before merging them.
         tasks["merge${capitalizedVariantName}JniLibFolders"].apply {
