@@ -114,6 +114,10 @@ COPY goruntime-boottime-over-monotonic.diff /tmp/goruntime-boottime-over-monoton
 RUN patch -p1 -f -N -r- -d /usr/local/go < /tmp/goruntime-boottime-over-monotonic.diff && \
     rm /tmp/goruntime-boottime-over-monotonic.diff
 
+# Set default toolchain. This is important for reproducible builds.
+# TODO: Move to base image (../../building/Dockerfile).
+RUN rustup default 1.83.0
+
 # Add rust targets
 RUN rustup target add x86_64-linux-android i686-linux-android aarch64-linux-android armv7-linux-androideabi
 
@@ -123,5 +127,8 @@ RUN rustup target add x86_64-linux-android i686-linux-android aarch64-linux-andr
 # This is an intermediate solution that will be further improved as part of
 # issue: DROID-1328.
 RUN cargo install --force cbindgen --version "0.26.0" && rm -rf ~/.cargo/registry
+
+# Add rust-src which is important for reproducible builds.
+RUN rustup component add rust-src
 
 WORKDIR /build
