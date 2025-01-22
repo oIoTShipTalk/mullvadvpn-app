@@ -18,6 +18,8 @@ BUNDLE_TASKS=(createPlayProdReleaseDistBundle)
 RUN_PLAY_PUBLISH_TASKS="no"
 PLAY_PUBLISH_TASKS=()
 
+export CARGO_TARGET_DIR="$SCRIPT_DIR/../target"
+
 while [ -n "${1:-""}" ]; do
     if [[ "${1:-""}" == "--dev-build" ]]; then
         GRADLE_BUILD_TYPE="debug"
