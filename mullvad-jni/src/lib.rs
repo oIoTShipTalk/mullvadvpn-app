@@ -1,34 +1,27 @@
 #![cfg(target_os = "android")]
 
+use std::io;
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex, Once};
+
+use jnix::jni::objects::{JClass, JObject};
+use jnix::jni::JNIEnv;
+use jnix::{FromJava, JnixEnv};
+use tokio::runtime::Runtime;
+
+use mullvad_daemon::runtime::new_multi_thread;
+use talpid_types::android::AndroidContext;
+
 mod api;
 mod classes;
+mod daemon;
 mod problem_report;
-mod talpid_vpn_service;
-
-use jnix::{
-    jni::{
-        objects::{JClass, JObject},
-        JNIEnv,
-    },
-    FromJava, JnixEnv,
-};
-use mullvad_api::ApiEndpoint;
-use mullvad_daemon::{
-    cleanup_old_rpc_socket, exception_logging, logging, runtime::new_multi_thread, version, Daemon,
-    DaemonCommandChannel, DaemonCommandSender, DaemonConfig,
-};
-use std::{
-    io,
-    path::{Path, PathBuf},
-    sync::{Arc, Mutex, Once, OnceLock},
-};
-use talpid_types::{android::AndroidContext, ErrorExt};
 
 const LOG_FILENAME: &str = "daemon.log";
 
 /// Mullvad daemon instance. It must be initialized and destroyed by `MullvadDaemon.initialize` and
 /// `MullvadDaemon.shutdown`, respectively.
-static DAEMON_CONTEXT: Mutex<Option<DaemonContext>> = Mutex::new(None);
+static DAEMON_CONTEXT: Mutex<Option<(daemon::DaemonContext, Runtime)>> = Mutex::new(None);
 
 static LOAD_CLASSES: Once = Once::new();
 
@@ -40,11 +33,8 @@ pub enum Error {
     #[error("Failed to get Java VM instance")]
     GetJvmInstance(#[source] jnix::jni::errors::Error),
 
-    #[error("Failed to initialize logging: {0}")]
-    InitializeLogging(String),
-
-    #[error("Failed to initialize the mullvad daemon")]
-    InitializeDaemon(#[source] mullvad_daemon::Error),
+    #[error(transparent)]
+    Daemon(#[from] daemon::Error),
 
     #[error("Failed to init Tokio runtime")]
     InitTokio(#[source] io::Error),
@@ -63,13 +53,6 @@ macro_rules! ok_or_throw {
             }
         }
     }};
-}
-
-#[derive(Debug)]
-struct DaemonContext {
-    runtime: tokio::runtime::Runtime,
-    daemon_command_tx: DaemonCommandSender,
-    running_daemon: tokio::task::JoinHandle<()>,
 }
 
 /// Spawn Mullvad daemon. There can only be a single instance, which must be shut down using
@@ -91,26 +74,27 @@ pub extern "system" fn Java_net_mullvad_mullvadvpn_service_MullvadDaemon_initial
 
     LOAD_CLASSES.call_once(|| env.preload_classes(classes::CLASSES.iter().cloned()));
 
+    let runtime = ok_or_throw!(&env, new_multi_thread().build().map_err(Error::InitTokio));
+
     let rpc_socket = pathbuf_from_java(&env, rpc_socket_path);
     let files_dir = pathbuf_from_java(&env, files_directory);
     let cache_dir = pathbuf_from_java(&env, cache_directory);
+    let api_endpoint = api::api_endpoint_from_java(&env, api_endpoint);
 
     let android_context = ok_or_throw!(&env, create_android_context(&env, vpn_service));
 
-    let api_endpoint = api::api_endpoint_from_java(&env, api_endpoint);
-
     let daemon = ok_or_throw!(
         &env,
-        start(
+        runtime.block_on(daemon::DaemonContext::start(
             android_context,
             rpc_socket,
             files_dir,
             cache_dir,
             api_endpoint,
-        )
+        ))
     );
 
-    *ctx = Some(daemon);
+    *ctx = Some((daemon, runtime));
 }
 
 /// Shut down Mullvad daemon that was initialized using `MullvadDaemon.initialize`.
@@ -120,109 +104,11 @@ pub extern "system" fn Java_net_mullvad_mullvadvpn_service_MullvadDaemon_shutdow
     _: JNIEnv<'_>,
     _class: JClass<'_>,
 ) {
-    if let Some(context) = DAEMON_CONTEXT.lock().unwrap().take() {
-        _ = context.daemon_command_tx.shutdown();
-        _ = context.runtime.block_on(context.running_daemon);
-
+    if let Some((daemon, runtime)) = DAEMON_CONTEXT.lock().unwrap().take() {
         // Dropping the tokio runtime will block if there are any tasks in flight.
         // That is, until all async tasks yield *and* all blocking threads have stopped.
+        runtime.block_on(daemon.stop());
     }
-}
-
-fn start(
-    android_context: AndroidContext,
-    rpc_socket: PathBuf,
-    files_dir: PathBuf,
-    cache_dir: PathBuf,
-    api_endpoint: Option<mullvad_api::ApiEndpoint>,
-) -> Result<DaemonContext, Error> {
-    start_logging(&files_dir).map_err(Error::InitializeLogging)?;
-    version::log_version();
-
-    #[cfg(not(feature = "api-override"))]
-    if api_endpoint.is_some() {
-        log::warn!("api_endpoint will be ignored since 'api-override' is not enabled");
-    }
-
-    spawn_daemon(
-        android_context,
-        rpc_socket,
-        files_dir,
-        cache_dir,
-        api_endpoint.unwrap_or(ApiEndpoint::from_env_vars()),
-    )
-}
-
-fn spawn_daemon(
-    android_context: AndroidContext,
-    rpc_socket: PathBuf,
-    files_dir: PathBuf,
-    cache_dir: PathBuf,
-    endpoint: ApiEndpoint,
-) -> Result<DaemonContext, Error> {
-    let daemon_command_channel = DaemonCommandChannel::new();
-    let daemon_command_tx = daemon_command_channel.sender();
-
-    let runtime = new_multi_thread().build().map_err(Error::InitTokio)?;
-
-    let daemon_config = DaemonConfig {
-        rpc_socket_path: rpc_socket,
-        log_dir: Some(files_dir.clone()),
-        resource_dir: files_dir.clone(),
-        settings_dir: files_dir,
-        cache_dir,
-        android_context,
-        endpoint,
-    };
-
-    let running_daemon =
-        runtime.block_on(spawn_daemon_inner(daemon_config, daemon_command_channel))?;
-
-    Ok(DaemonContext {
-        runtime,
-        daemon_command_tx,
-        running_daemon,
-    })
-}
-
-async fn spawn_daemon_inner(
-    daemon_config: DaemonConfig,
-    daemon_command_channel: DaemonCommandChannel,
-) -> Result<tokio::task::JoinHandle<()>, Error> {
-    cleanup_old_rpc_socket(&daemon_config.rpc_socket_path).await;
-
-    let daemon = Daemon::start(daemon_config, daemon_command_channel)
-        .await
-        .map_err(Error::InitializeDaemon)?;
-
-    let running_daemon = tokio::spawn(async move {
-        match daemon.run().await {
-            Ok(()) => log::info!("Mullvad daemon has stopped"),
-            Err(error) => log::error!(
-                "{}",
-                error.display_chain_with_msg("Mullvad daemon exited with an error")
-            ),
-        }
-    });
-
-    Ok(running_daemon)
-}
-
-fn start_logging(log_dir: &Path) -> Result<(), String> {
-    static LOGGER_RESULT: OnceLock<Result<(), String>> = OnceLock::new();
-    LOGGER_RESULT
-        .get_or_init(|| start_logging_inner(log_dir).map_err(|e| e.display_chain()))
-        .to_owned()
-}
-
-fn start_logging_inner(log_dir: &Path) -> Result<(), logging::Error> {
-    let log_file = log_dir.join(LOG_FILENAME);
-
-    logging::init_logger(log::LevelFilter::Debug, Some(&log_file), true)?;
-    exception_logging::enable();
-    log_panics::init();
-
-    Ok(())
 }
 
 fn create_android_context(
