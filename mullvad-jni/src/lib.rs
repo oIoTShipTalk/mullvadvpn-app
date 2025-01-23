@@ -1,20 +1,18 @@
 #![cfg(target_os = "android")]
 
 use std::io;
-use std::path::PathBuf;
-use std::sync::{Arc, Mutex, Once};
+use std::sync::Mutex;
 
 use jnix::jni::objects::{JClass, JObject};
 use jnix::jni::JNIEnv;
-use jnix::{FromJava, JnixEnv};
 use tokio::runtime::Runtime;
 
 use mullvad_daemon::runtime::new_multi_thread;
-use talpid_types::android::AndroidContext;
 
 mod api;
 mod classes;
 mod daemon;
+mod jvm;
 mod problem_report;
 
 const LOG_FILENAME: &str = "daemon.log";
@@ -23,36 +21,16 @@ const LOG_FILENAME: &str = "daemon.log";
 /// `MullvadDaemon.shutdown`, respectively.
 static DAEMON_CONTEXT: Mutex<Option<(daemon::DaemonContext, Runtime)>> = Mutex::new(None);
 
-static LOAD_CLASSES: Once = Once::new();
-
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
-    #[error("Failed to create global reference to Java object")]
-    CreateGlobalReference(#[source] jnix::jni::errors::Error),
-
-    #[error("Failed to get Java VM instance")]
-    GetJvmInstance(#[source] jnix::jni::errors::Error),
+    #[error(transparent)]
+    Jvm(#[from] jvm::Error),
 
     #[error(transparent)]
     Daemon(#[from] daemon::Error),
 
     #[error("Failed to init Tokio runtime")]
     InitTokio(#[source] io::Error),
-}
-
-/// Throw a Java exception and return if `result` is an error
-macro_rules! ok_or_throw {
-    ($env:expr, $result:expr) => {{
-        match $result {
-            Ok(val) => val,
-            Err(err) => {
-                let env = $env;
-                env.throw(err.to_string())
-                    .expect("Failed to throw exception");
-                return;
-            }
-        }
-    }};
 }
 
 /// Spawn Mullvad daemon. There can only be a single instance, which must be shut down using
@@ -70,20 +48,17 @@ pub extern "system" fn Java_net_mullvad_mullvadvpn_service_MullvadDaemon_initial
     let mut ctx = DAEMON_CONTEXT.lock().unwrap();
     assert!(ctx.is_none(), "multiple calls to MullvadDaemon.initialize");
 
-    let env = JnixEnv::from(env);
+    let jvm = jvm::Jvm::new(env);
+    let runtime = jvm::ok_or_throw!(&env, new_multi_thread().build().map_err(Error::InitTokio));
 
-    LOAD_CLASSES.call_once(|| env.preload_classes(classes::CLASSES.iter().cloned()));
+    let rpc_socket = jvm.pathbuf_from_java(rpc_socket_path);
+    let files_dir = jvm.pathbuf_from_java(files_directory);
+    let cache_dir = jvm.pathbuf_from_java(cache_directory);
+    let api_endpoint = jvm.api_endpoint_from_java(api_endpoint);
 
-    let runtime = ok_or_throw!(&env, new_multi_thread().build().map_err(Error::InitTokio));
+    let android_context = jvm::ok_or_throw!(&env, jvm.create_android_context(vpn_service));
 
-    let rpc_socket = pathbuf_from_java(&env, rpc_socket_path);
-    let files_dir = pathbuf_from_java(&env, files_directory);
-    let cache_dir = pathbuf_from_java(&env, cache_directory);
-    let api_endpoint = api::api_endpoint_from_java(&env, api_endpoint);
-
-    let android_context = ok_or_throw!(&env, create_android_context(&env, vpn_service));
-
-    let daemon = ok_or_throw!(
+    let daemon = jvm::ok_or_throw!(
         &env,
         runtime.block_on(daemon::DaemonContext::start(
             android_context,
@@ -109,20 +84,4 @@ pub extern "system" fn Java_net_mullvad_mullvadvpn_service_MullvadDaemon_shutdow
         // That is, until all async tasks yield *and* all blocking threads have stopped.
         runtime.block_on(daemon.stop());
     }
-}
-
-fn create_android_context(
-    env: &JnixEnv<'_>,
-    vpn_service: JObject<'_>,
-) -> Result<AndroidContext, Error> {
-    Ok(AndroidContext {
-        jvm: Arc::new(env.get_java_vm().map_err(Error::GetJvmInstance)?),
-        vpn_service: env
-            .new_global_ref(vpn_service)
-            .map_err(Error::CreateGlobalReference)?,
-    })
-}
-
-fn pathbuf_from_java(env: &JnixEnv<'_>, path: JObject<'_>) -> PathBuf {
-    PathBuf::from(String::from_java(env, path))
 }
