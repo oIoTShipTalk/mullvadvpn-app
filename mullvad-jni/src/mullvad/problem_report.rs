@@ -1,14 +1,14 @@
-use jnix::{
-    jni::{
-        objects::{JObject, JString},
-        sys::{jboolean, JNI_FALSE, JNI_TRUE},
-        JNIEnv,
-    },
-    FromJava, JnixEnv,
-};
-use mullvad_api::ApiEndpoint;
 use std::path::Path;
+
+use jnix::jni::objects::{JObject, JString};
+use jnix::jni::sys::{jboolean, JNI_FALSE, JNI_TRUE};
+use jnix::jni::JNIEnv;
+use jnix::{FromJava, JnixEnv};
+
+use mullvad_api::ApiEndpoint;
 use talpid_types::ErrorExt;
+
+use super::api;
 
 #[no_mangle]
 #[allow(non_snake_case)]
@@ -55,7 +55,7 @@ pub extern "system" fn Java_net_mullvad_mullvadvpn_dataproxy_MullvadProblemRepor
     let cache_directory_string = String::from_java(&env, cacheDirectory);
     let cache_directory = Path::new(&cache_directory_string);
     let api_endpoint =
-        crate::api::api_endpoint_from_java(&env, endpoint).unwrap_or(ApiEndpoint::from_env_vars());
+        api::api_endpoint_from_java(&env, endpoint).unwrap_or(ApiEndpoint::from_env_vars());
 
     let send_result = mullvad_problem_report::send_problem_report(
         &user_email,

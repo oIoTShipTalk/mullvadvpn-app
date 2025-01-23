@@ -9,17 +9,14 @@ use tokio::runtime::Runtime;
 
 use mullvad_daemon::runtime::new_multi_thread;
 
-mod api;
-mod classes;
-mod daemon;
 mod jvm;
-mod problem_report;
+mod mullvad;
 
 const LOG_FILENAME: &str = "daemon.log";
 
 /// Mullvad daemon instance. It must be initialized and destroyed by `MullvadDaemon.initialize` and
 /// `MullvadDaemon.shutdown`, respectively.
-static DAEMON_CONTEXT: Mutex<Option<(daemon::DaemonContext, Runtime)>> = Mutex::new(None);
+static DAEMON_CONTEXT: Mutex<Option<(mullvad::daemon::DaemonContext, Runtime)>> = Mutex::new(None);
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -27,7 +24,7 @@ pub enum Error {
     Jvm(#[from] jvm::Error),
 
     #[error(transparent)]
-    Daemon(#[from] daemon::Error),
+    Daemon(#[from] mullvad::daemon::Error),
 
     #[error("Failed to init Tokio runtime")]
     InitTokio(#[source] io::Error),
@@ -60,7 +57,7 @@ pub extern "system" fn Java_net_mullvad_mullvadvpn_service_MullvadDaemon_initial
 
     let daemon = jvm::ok_or_throw!(
         &env,
-        runtime.block_on(daemon::DaemonContext::start(
+        runtime.block_on(mullvad::daemon::DaemonContext::start(
             android_context,
             rpc_socket,
             files_dir,

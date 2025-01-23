@@ -1,7 +1,4 @@
 //! Functions, types and macros for working with the Java Virtual Machine.
-use crate::api;
-use crate::classes;
-
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::Once;
@@ -11,6 +8,10 @@ use jnix::jni::JNIEnv;
 use jnix::{FromJava, JnixEnv};
 
 use talpid_types::android::AndroidContext;
+
+use crate::mullvad::api;
+
+mod classes;
 
 static LOAD_CLASSES: Once = Once::new();
 
