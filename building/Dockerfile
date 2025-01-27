@@ -58,9 +58,10 @@ RUN dpkg --add-architecture arm64 && apt-get update -y && apt-get install -y \
 # plus x86_64-pc-windows-gnu for Windows cross-compilation/linting
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | \
     sh -s -- -y \
-    --default-toolchain stable \
+    --default-toolchain "1.83.0" \
     --profile minimal \
     --component clippy \
+    --component rust-src \
     --target aarch64-unknown-linux-gnu \
     --target x86_64-pc-windows-gnu
 

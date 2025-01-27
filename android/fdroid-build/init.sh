@@ -12,12 +12,6 @@ chmod +x /tmp/rustup.sh
 /tmp/rustup.sh -y
 # shellcheck source=/dev/null
 source "$HOME/.cargo/env"
-rustup set profile minimal
-rustup target add \
-    i686-linux-android \
-    x86_64-linux-android \
-    aarch64-linux-android \
-    armv7-linux-androideabi
 
 # Install golang
 GOLANG_VERSION="1.21.3"
