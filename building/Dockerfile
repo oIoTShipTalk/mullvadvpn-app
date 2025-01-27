@@ -39,7 +39,12 @@ ARG PROTOBUF_COMMIT_REF=ee1355459c9ce7ffe264bc40cfdc7b7623d37e99
 
 # === Install/set up the image ===
 
-RUN dpkg --add-architecture arm64 && apt-get update -y && apt-get install -y \
+RUN dpkg --add-architecture arm64 && apt-get update -y && \
+    apt-mark hold openssh-client && \
+    apt-mark hold openssh-client:arm64 && \
+    apt-mark hold dbus && \
+    apt-mark hold dbus:arm64 && \
+    apt-get install -y \
     git \
     curl \
     make \

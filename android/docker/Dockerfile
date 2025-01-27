@@ -19,7 +19,7 @@
 # patch for a given go version can be identified by checking the wireguard-android
 # repo: https://git.zx2c4.com/wireguard-android/tree/tunnel/tools/libwg-go.
 # It's also important to keep the go path in sync.
-FROM ghcr.io/mullvad/mullvadvpn-app-build:124ce3fef
+FROM mullvadvpn-app-build:repro1
 
 # === Metadata ===
 LABEL org.opencontainers.image.source=https://github.com/mullvad/mullvadvpn-app
@@ -73,7 +73,11 @@ ENV RUST_ANDROID_GRADLE_PYTHON_COMMAND=/usr/bin/python3
 
 # === Install/set up the image ===
 
-RUN apt-get update -y && apt-get install -y \
+RUN apt-get update -y && \
+    apt-mark hold systemd && \
+    apt-mark hold systemd:arm64 && \
+    apt-mark hold cron cron:arm64 bcron bcron:arm64 runit runit-run exim4-config exim4-base exim4-daemon-light dma && \
+    apt-get install -y \
     file \
     gpg \
     make \
