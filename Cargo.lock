@@ -6112,7 +6112,6 @@ dependencies = [
  "log",
  "maybenot-ffi 0.0.0",
  "thiserror 2.0.9",
- "windows-sys 0.52.0",
  "zeroize",
 ]
 
