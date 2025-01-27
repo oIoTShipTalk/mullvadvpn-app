@@ -6,13 +6,13 @@
 //!
 //! The [`Tunnel`] type provides a safe Rust wrapper around the C FFI.
 
-use core::ffi::{c_char, CStr};
-use core::mem::ManuallyDrop;
-#[cfg(target_os = "windows")]
-use core::mem::MaybeUninit;
-use core::slice;
-#[cfg(target_os = "windows")]
-use std::ffi::CString;
+#![cfg(unix)]
+
+use core::{
+    ffi::{c_char, CStr},
+    mem::ManuallyDrop,
+    slice,
+};
 use util::OnDrop;
 #[cfg(target_os = "windows")]
 use windows_sys::Win32::NetworkManagement::Ndis::NET_LUID_LH;
@@ -29,7 +29,8 @@ pub type LoggingContext = u64;
 pub type LoggingCallback =
     unsafe extern "system" fn(level: WgLogLevel, msg: *const c_char, context: LoggingContext);
 
-// Make symbols from maybenot-ffi visible to wireguard-go
+// Make symbols from maybenot-ffi visible to wireguard-go, on the platforms where
+// wireguard-go is statically linked into this crate.
 #[cfg(all(daita, any(target_os = "linux", target_os = "macos")))]
 use maybenot_ffi as _;
 
@@ -300,13 +301,6 @@ impl Drop for Tunnel {
             log::error!("Failed to stop wireguard-go tunnel,oerror_code={code} ({e:?})")
         }
     }
-}
-
-/// Rebind WireGuard endpoint sockets. When the default interface changes, this needs to be called
-/// so that the UDP socket can be rebound to use the new interface
-#[cfg(target_os = "windows")]
-pub fn update_bind() {
-    unsafe { ffi::wgUpdateBind() }
 }
 
 fn result_from_code(code: i32) -> Result<(), Error> {
