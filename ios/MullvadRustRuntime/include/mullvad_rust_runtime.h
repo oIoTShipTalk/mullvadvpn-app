@@ -68,11 +68,11 @@ typedef struct EphemeralPeerParameters {
 extern const uint16_t CONFIG_SERVICE_PORT;
 
 extern void completion_finish(struct SwiftMullvadApiResponse response,
-                              struct CompletionCookie cookie);
+                              struct CompletionCookie async_cookie);
 
 struct SwiftApiContext mullvad_api_init_new(const uint8_t *host, const uint8_t *address);
 
-void mullvad_api_get_addresses(struct SwiftApiContext api_context, void *cookie);
+void mullvad_api_get_addresses(struct SwiftApiContext api_context, void *async_cookie);
 
 void mullvad_response_drop(struct SwiftMullvadApiResponse response);
 
