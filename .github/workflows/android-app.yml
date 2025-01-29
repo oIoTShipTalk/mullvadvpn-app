@@ -131,6 +131,9 @@ jobs:
 
       - name: Checkout repository
         uses: actions/checkout@v4
+        if: >
+          (github.event.inputs.e2e_test_repeat != '0' && env.E2E_TEST_INFRA_FLAVOR == 'stagemole') ||
+          github.event.inputs.run_firebase_tests == 'true'
         with:
           submodules: true
 
