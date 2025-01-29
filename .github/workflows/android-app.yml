@@ -91,9 +91,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Generate keystore
-        if: >
-          (github.event.inputs.e2e_test_repeat != '0' && env.E2E_TEST_INFRA_FLAVOR == 'stagemole') ||
-          github.event.inputs.run_firebase_tests == 'true'
+        if: github.event.inputs.e2e_test_repeat != '0'
         run: >-
           keytool -genkey
           -keystore debug.keystore
