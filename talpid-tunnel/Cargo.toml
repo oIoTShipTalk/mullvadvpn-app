@@ -35,6 +35,7 @@ tun = { version = "0.7.11", features = ["async"] }
 
 [target.'cfg(windows)'.dependencies]
 talpid-windows = { path = "../talpid-windows" }
+tun = { version = "0.7.11", features = ["async"] }
 
 [target.'cfg(windows)'.dependencies.windows-sys]
 workspace = true
