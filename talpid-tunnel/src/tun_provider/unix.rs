@@ -6,7 +6,7 @@ use std::{
     ops::Deref,
     os::unix::io::{AsRawFd, IntoRawFd, RawFd},
 };
-use tun::{platform, Configuration, Device};
+use tun::{AbstractDevice, AsyncDevice, Configuration, Device};
 
 /// Errors that can occur while setting up a tunnel device.
 #[derive(Debug, thiserror::Error)]
@@ -82,8 +82,12 @@ pub struct UnixTun(TunnelDevice);
 
 impl UnixTun {
     /// Retrieve the tunnel interface name.
-    pub fn interface_name(&self) -> &str {
+    pub fn interface_name(&self) -> String {
         self.get_name()
+    }
+
+    pub fn into_tun_lol(self) -> AsyncDevice {
+        AsyncDevice::new(self.0.dev).unwrap()
     }
 }
 
@@ -97,7 +101,7 @@ impl Deref for UnixTun {
 
 /// A tunnel device
 pub struct TunnelDevice {
-    dev: platform::Device,
+    dev: tun::Device,
 }
 
 /// A tunnel device builder.
@@ -119,7 +123,7 @@ impl TunnelDeviceBuilder {
             Ok(())
         }
 
-        let dev = platform::create(&self.config).map_err(Error::CreateDevice)?;
+        let dev = tun::create(&self.config).map_err(Error::CreateDevice)?;
         apply_async_flags(dev.as_raw_fd()).map_err(Error::SetDeviceAsync)?;
         Ok(TunnelDevice { dev })
     }
@@ -131,7 +135,7 @@ impl TunnelDeviceBuilder {
         self
     }
 
-    /// Enable packet information.
+    /*/// Enable packet information.
     /// When enabled the first 4 bytes of each packet is a header with flags and protocol type.
     #[cfg(target_os = "linux")]
     pub fn enable_packet_information(&mut self) -> &mut Self {
@@ -139,7 +143,7 @@ impl TunnelDeviceBuilder {
             platform_config.packet_information(true);
         });
         self
-    }
+    }*/
 }
 
 impl Default for TunnelDeviceBuilder {
@@ -164,7 +168,7 @@ impl IntoRawFd for TunnelDevice {
 impl TunnelDevice {
     fn set_ip(&mut self, ip: IpAddr) -> Result<(), Error> {
         match ip {
-            IpAddr::V4(ipv4) => self.dev.set_address(ipv4).map_err(Error::SetIpv4),
+            IpAddr::V4(ipv4) => self.dev.set_address(ipv4.into()).map_err(Error::SetIpv4),
             IpAddr::V6(ipv6) => {
                 #[cfg(target_os = "linux")]
                 {
@@ -175,7 +179,7 @@ impl TunnelDevice {
                         "add",
                         ipv6.to_string(),
                         "dev",
-                        self.dev.name()
+                        &self.dev.tun_name().unwrap()
                     )
                     .run()
                     .map(|_| ())
@@ -202,7 +206,7 @@ impl TunnelDevice {
         self.dev.enabled(up).map_err(Error::ToggleDevice)
     }
 
-    fn get_name(&self) -> &str {
-        self.dev.name()
+    fn get_name(&self) -> String {
+        self.dev.tun_name().unwrap()
     }
 }

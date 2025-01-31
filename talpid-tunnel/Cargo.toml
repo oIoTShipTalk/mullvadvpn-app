@@ -28,10 +28,10 @@ jnix = { version = "0.5.1", features = ["derive"] }
 log = { workspace = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
-tun = "0.5.1"
+tun = { version = "0.7.11", features = ["async"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
-tun = "0.5.1"
+tun = { version = "0.7.11", features = ["async"] }
 
 [target.'cfg(windows)'.dependencies]
 talpid-windows = { path = "../talpid-windows" }

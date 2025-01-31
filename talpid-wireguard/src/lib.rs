@@ -323,7 +323,7 @@ impl WireguardMonitor {
 
             let cloned_tunnel = Arc::clone(&tunnel);
 
-            let connectivity_check = tokio::task::spawn_blocking(move || {
+            /*let connectivity_check = tokio::task::spawn_blocking(move || {
                 let lock = cloned_tunnel.blocking_lock();
                 let tunnel = lock.as_ref().expect("The tunnel was dropped unexpectedly");
                 match connectivity_monitor.establish_connectivity(tunnel) {
@@ -342,9 +342,9 @@ impl WireguardMonitor {
                 }
             })
             .await
-            .unwrap()?;
+            .unwrap()?;*/
             // HACK: Sleep instead of conn check
-            // std::thread::sleep(std::time::Duration::from_millis(100));
+            //std::thread::sleep(std::time::Duration::from_millis(100));
 
             // Add any default route(s) that may exist.
             args.route_manager
@@ -356,7 +356,7 @@ impl WireguardMonitor {
             let metadata = Self::tunnel_metadata(&iface_name, &config);
             (on_event)(TunnelEvent::Up(metadata)).await;
 
-            let monitored_tunnel = Arc::downgrade(&tunnel);
+            /*let monitored_tunnel = Arc::downgrade(&tunnel);
             tokio::task::spawn_blocking(move || {
                 if let Err(error) =
                     connectivity::Monitor::init(connectivity_check).run(monitored_tunnel)
@@ -368,8 +368,9 @@ impl WireguardMonitor {
                 }
             })
             .await
-            .unwrap();
-            // std::mem::forget(connectivity_monitor);
+            .unwrap();*/
+            std::mem::forget(connectivity_monitor);
+            std::thread::sleep(std::time::Duration::from_secs(300));
 
             Err::<Infallible, CloseMsg>(CloseMsg::PingErr)
         };
