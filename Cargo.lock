@@ -381,10 +381,9 @@ dependencies = [
 
 [[package]]
 name = "boringtun"
-version = "0.5.3"
+version = "0.6.0"
 dependencies = [
  "aead",
- "anyhow",
  "base64 0.13.1",
  "blake2",
  "chacha20poly1305",
@@ -395,14 +394,16 @@ dependencies = [
  "ip_network_table",
  "libc",
  "log",
- "nix 0.24.3",
- "nix 0.29.0",
+ "nix 0.25.1",
  "parking_lot",
  "rand_core 0.6.4",
- "ring 0.16.20",
+ "ring",
+ "socket2 0.4.10",
+ "thiserror",
+ "tokio",
  "tracing",
  "typed-builder",
- "untrusted 0.9.0",
+ "untrusted",
  "x25519-dalek",
 ]
 
@@ -1648,7 +1649,7 @@ dependencies = [
  "http-body",
  "hyper",
  "pin-project-lite",
- "socket2",
+ "socket2 0.5.6",
  "tokio",
  "tower-service",
  "tracing",
@@ -1956,7 +1957,7 @@ version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b58db92f96b720de98181bbbe63c831e87005ab460c1bf306eb2622b4707997f"
 dependencies = [
- "socket2",
+ "socket2 0.5.6",
  "widestring",
  "windows-sys 0.48.0",
  "winreg 0.50.0",
@@ -2132,9 +2133,9 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "libc"
-version = "0.2.158"
+version = "0.2.169"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8adc4bb1803a324070e64a98ae98f38934d91957a99cfb3a43dcbc01bc56439"
+checksum = "b5aba8db14291edd000dfcc4d620c7ebfb122c613afb886ca8803fa4e128a20a"
 
 [[package]]
 name = "libdbus-sys"
@@ -2840,7 +2841,18 @@ dependencies = [
  "bitflags 1.3.2",
  "cfg-if",
  "libc",
- "memoffset 0.6.5",
+]
+
+[[package]]
+name = "nix"
+version = "0.25.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f346ff70e7dbfd675fe90590b92d59ef2de15a8779ae305ebcbfd3f0caf59be4"
+dependencies = [
+ "autocfg",
+ "bitflags 1.3.2",
+ "cfg-if",
+ "libc",
 ]
 
 [[package]]
@@ -2866,7 +2878,6 @@ dependencies = [
  "cfg-if",
  "cfg_aliases 0.2.1",
  "libc",
- "memoffset 0.9.1",
 ]
 
 [[package]]
@@ -3722,21 +3733,6 @@ dependencies = [
 
 [[package]]
 name = "ring"
-version = "0.16.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3053cf52e236a3ed746dfc745aa9cacf1b791d846bdaf412f60a8d7d6e17c8fc"
-dependencies = [
- "cc",
- "libc",
- "once_cell",
- "spin 0.5.2",
- "untrusted 0.7.1",
- "web-sys",
- "winapi",
-]
-
-[[package]]
-name = "ring"
 version = "0.17.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c17fa4cb658e3583423e915b9f3acc01cceaee1860e33d59ebae66adc3a2dc0d"
@@ -3745,8 +3741,8 @@ dependencies = [
  "cfg-if",
  "getrandom 0.2.14",
  "libc",
- "spin 0.9.8",
- "untrusted 0.9.0",
+ "spin",
+ "untrusted",
  "windows-sys 0.52.0",
 ]
 
@@ -3765,7 +3761,7 @@ dependencies = [
  "p384",
  "pkcs8",
  "rand_core 0.6.4",
- "ring 0.17.8",
+ "ring",
  "signature",
 ]
 
@@ -3825,7 +3821,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7fecbfb7b1444f477b345853b1fce097a2c6fb637b2bfb87e6bc5db0f043fae4"
 dependencies = [
  "log",
- "ring 0.17.8",
+ "ring",
  "rustls-webpki 0.101.7",
  "sct",
 ]
@@ -3838,7 +3834,7 @@ checksum = "9c9cc1d47e243d655ace55ed38201c19ae02c148ae56412ab8750e8f0166ab7f"
 dependencies = [
  "log",
  "once_cell",
- "ring 0.17.8",
+ "ring",
  "rustls-pki-types",
  "rustls-webpki 0.102.8",
  "subtle",
@@ -3876,8 +3872,8 @@ version = "0.101.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8b6275d1ee7a1cd780b64aca7726599a1dbc893b1e64144529e55c3c2f745765"
 dependencies = [
- "ring 0.17.8",
- "untrusted 0.9.0",
+ "ring",
+ "untrusted",
 ]
 
 [[package]]
@@ -3886,9 +3882,9 @@ version = "0.102.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "64ca1bc8749bd4cf37b5ce386cc146580777b4e8572c7b97baf22c83f444bee9"
 dependencies = [
- "ring 0.17.8",
+ "ring",
  "rustls-pki-types",
- "untrusted 0.9.0",
+ "untrusted",
 ]
 
 [[package]]
@@ -3936,8 +3932,8 @@ version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "da046153aa2352493d6cb7da4b6e5c0c057d8a1d0a9aa8560baffdd945acd414"
 dependencies = [
- "ring 0.17.8",
- "untrusted 0.9.0",
+ "ring",
+ "untrusted",
 ]
 
 [[package]]
@@ -4089,8 +4085,8 @@ dependencies = [
  "serde_json",
  "serde_urlencoded",
  "shadowsocks-crypto",
- "socket2",
- "spin 0.9.8",
+ "socket2 0.5.6",
+ "spin",
  "thiserror",
  "tokio",
  "tokio-tfo",
@@ -4148,8 +4144,8 @@ dependencies = [
  "regex",
  "serde",
  "shadowsocks",
- "socket2",
- "spin 0.9.8",
+ "socket2 0.5.6",
+ "spin",
  "thiserror",
  "tokio",
  "windows-sys 0.59.0",
@@ -4228,6 +4224,16 @@ checksum = "3c5e1a9a646d36c3599cd173a41282daf47c44583ad367b8e6837255952e5c67"
 
 [[package]]
 name = "socket2"
+version = "0.4.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9f7916fc008ca5542385b89a3d3ce689953c143e9304a9bf8beec1de48994c0d"
+dependencies = [
+ "libc",
+ "winapi",
+]
+
+[[package]]
+name = "socket2"
 version = "0.5.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05ffd9c0a93b7543e062e759284fcf5f5e3b098501104bfbdde4d404db792871"
@@ -4235,12 +4241,6 @@ dependencies = [
  "libc",
  "windows-sys 0.52.0",
 ]
-
-[[package]]
-name = "spin"
-version = "0.5.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6e63cff320ae2c57904679ba7cb63280a3dc4613885beafb148ee7bf9aa9042d"
 
 [[package]]
 name = "spin"
@@ -4298,7 +4298,7 @@ dependencies = [
  "parking_lot",
  "pnet_packet",
  "rand 0.8.5",
- "socket2",
+ "socket2 0.5.6",
  "thiserror",
  "tokio",
  "tracing",
@@ -4474,7 +4474,7 @@ version = "0.0.0"
 dependencies = [
  "libc",
  "log",
- "socket2",
+ "socket2 0.5.6",
  "talpid-types",
 ]
 
@@ -4628,7 +4628,7 @@ name = "talpid-windows"
 version = "0.0.0"
 dependencies = [
  "futures",
- "socket2",
+ "socket2 0.5.6",
  "talpid-types",
  "thiserror",
  "windows-sys 0.52.0",
@@ -4661,7 +4661,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "rtnetlink",
- "socket2",
+ "socket2 0.5.6",
  "surge-ping",
  "talpid-dbus",
  "talpid-net",
@@ -4767,9 +4767,9 @@ checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
 name = "tokio"
-version = "1.39.3"
+version = "1.43.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9babc99b9923bfa4804bd74722ff02c0381021eafa4db9949217e3be8e84fff5"
+checksum = "3d61fa4ffa3de412bfea335c6ecff681de2b609ba3c77ef3e00e521813a9ed9e"
 dependencies = [
  "backtrace",
  "bytes",
@@ -4778,16 +4778,16 @@ dependencies = [
  "parking_lot",
  "pin-project-lite",
  "signal-hook-registry",
- "socket2",
+ "socket2 0.5.6",
  "tokio-macros",
  "windows-sys 0.52.0",
 ]
 
 [[package]]
 name = "tokio-macros"
-version = "2.4.0"
+version = "2.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "693d596312e88961bc67d7f1f97af8a70227d9f90c31bba5806eec004978d752"
+checksum = "6e06d43f1345a3bcd39f6a56dbb7dcab2ba47e68e8ac134855e7e2bdbaf8cab8"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -4850,7 +4850,7 @@ dependencies = [
  "log",
  "once_cell",
  "pin-project",
- "socket2",
+ "socket2 0.5.6",
  "tokio",
  "windows-sys 0.52.0",
 ]
@@ -4913,7 +4913,7 @@ dependencies = [
  "percent-encoding",
  "pin-project",
  "prost 0.13.3",
- "socket2",
+ "socket2 0.5.6",
  "tokio",
  "tokio-stream",
  "tower 0.4.13",
@@ -5148,12 +5148,6 @@ dependencies = [
 
 [[package]]
 name = "untrusted"
-version = "0.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
-
-[[package]]
-name = "untrusted"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
@@ -5297,16 +5291,6 @@ name = "wasm-bindgen-shared"
 version = "0.2.92"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "af190c94f2773fdb3729c55b007a722abb5384da03bc0986df4c289bf5567e96"
-
-[[package]]
-name = "web-sys"
-version = "0.3.69"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "77afa9a11836342370f4817622a2f0f418b134426d91a82dfb48f532d2ec13ef"
-dependencies = [
- "js-sys",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "webpki-roots"

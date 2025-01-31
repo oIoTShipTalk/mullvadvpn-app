@@ -112,7 +112,9 @@ impl TunnelDeviceBuilder {
     pub fn create(self) -> Result<TunnelDevice, Error> {
         fn apply_async_flags(fd: RawFd) -> Result<(), nix::Error> {
             fcntl::fcntl(fd, fcntl::FcntlArg::F_GETFL)?;
-            let arg = fcntl::FcntlArg::F_SETFL(fcntl::OFlag::O_RDWR | fcntl::OFlag::O_NONBLOCK);
+            //let arg = fcntl::FcntlArg::F_SETFL(fcntl::OFlag::O_RDWR | fcntl::OFlag::O_NONBLOCK);
+            // FIXME
+            let arg = fcntl::FcntlArg::F_SETFL(fcntl::OFlag::O_RDWR);
             fcntl::fcntl(fd, arg)?;
             Ok(())
         }

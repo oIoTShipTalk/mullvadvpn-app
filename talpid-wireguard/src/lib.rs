@@ -655,7 +655,7 @@ impl WireguardMonitor {
     ) -> Result<TunnelType> {
         log::debug!("Tunnel MTU: {}", config.mtu);
 
-        let tunnel = Self::open_boringtun_tunnel(config, log_path, resource_dir, tun_provider)
+        let tunnel = runtime.block_on(Self::open_boringtun_tunnel(config, log_path, resource_dir, tun_provider))
             .map(Box::new)?;
         return Ok(tunnel);
 
@@ -797,7 +797,7 @@ impl WireguardMonitor {
     }
 
     /// Configure and start a boringtun tunnel.
-    fn open_boringtun_tunnel(
+    async fn open_boringtun_tunnel(
         config: &Config,
         log_path: Option<&Path>,
         #[cfg(daita)] resource_dir: &Path,
@@ -820,6 +820,7 @@ impl WireguardMonitor {
             #[cfg(daita)]
             resource_dir,
         )
+        .await
         .map_err(Error::TunnelError)?;
 
         Ok(tunnel)
