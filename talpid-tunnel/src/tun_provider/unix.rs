@@ -6,7 +6,7 @@ use std::{
     ops::Deref,
     os::unix::io::{AsRawFd, IntoRawFd, RawFd},
 };
-use tun::{AbstractDevice, AsyncDevice, Configuration, Device};
+use tun::{AbstractDevice, AsyncDevice, Configuration};
 
 /// Errors that can occur while setting up a tunnel device.
 #[derive(Debug, thiserror::Error)]
@@ -131,7 +131,7 @@ impl TunnelDeviceBuilder {
     /// Set a custom name for this tunnel device.
     #[cfg(target_os = "linux")]
     pub fn name(&mut self, name: &str) -> &mut Self {
-        self.config.name(name);
+        self.config.tun_name(name);
         self
     }
 
@@ -179,7 +179,7 @@ impl TunnelDevice {
                         "add",
                         ipv6.to_string(),
                         "dev",
-                        &self.dev.tun_name().unwrap()
+                        &self.get_name(),
                     )
                     .run()
                     .map(|_| ())
@@ -189,7 +189,7 @@ impl TunnelDevice {
                 {
                     duct::cmd!(
                         "ifconfig",
-                        self.dev.name(),
+                        self.get_name(),
                         "inet6",
                         ipv6.to_string(),
                         "alias"
