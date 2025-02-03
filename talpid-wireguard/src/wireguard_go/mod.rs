@@ -16,7 +16,10 @@ use std::ffi::CString;
 #[cfg(unix)]
 use std::os::unix::io::{AsRawFd, RawFd};
 #[cfg(unix)]
-use std::sync::{Arc, Mutex};
+use std::{
+    net::{Ipv4Addr, Ipv6Addr},
+    sync::{Arc, Mutex}
+};
 use std::{
     future::Future,
     path::{Path, PathBuf},
@@ -361,7 +364,16 @@ impl WgGoTunnel {
         tun_config.addresses = config.tunnel.addresses.clone();
         tun_config.ipv4_gateway = config.ipv4_gateway;
         tun_config.ipv6_gateway = config.ipv6_gateway;
-        tun_config.routes = routes.collect();
+
+        if cfg!(target_os = "android") {
+            let _ = routes; // don't need these, we route everything into the tunnel and have wireguard-go act as a firewall.
+            tun_config.routes = vec![
+                IpNetwork::new(Ipv4Addr::UNSPECIFIED.into(), 0).unwrap(),
+                IpNetwork::new(Ipv6Addr::UNSPECIFIED.into(), 0).unwrap(),
+            ];
+        } else {
+            tun_config.routes = routes.collect();
+        }
         tun_config.mtu = config.mtu;
 
         for _ in 1..=MAX_PREPARE_TUN_ATTEMPTS {
