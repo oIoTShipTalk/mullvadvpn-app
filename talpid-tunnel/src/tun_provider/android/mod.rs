@@ -221,7 +221,7 @@ impl AndroidTunProvider {
 /// Configuration to use for VpnService
 #[derive(Clone, Debug, Eq, PartialEq, IntoJava)]
 #[jnix(class_name = "net.mullvad.talpid.model.TunConfig")]
-struct VpnServiceConfig {
+pub struct VpnServiceConfig {
     /// IP addresses for the tunnel interface.
     pub addresses: Vec<IpAddr>,
 
@@ -318,7 +318,7 @@ impl VpnServiceConfig {
 
 #[derive(Clone, Debug, Eq, PartialEq, IntoJava)]
 #[jnix(package = "net.mullvad.talpid.model")]
-struct InetNetwork {
+pub struct InetNetwork {
     address: IpAddr,
     prefix: i16,
 }
@@ -329,6 +329,12 @@ impl From<IpNetwork> for InetNetwork {
             address: ip_network.ip(),
             prefix: ip_network.prefix() as i16,
         }
+    }
+}
+
+impl From<InetNetwork> for IpNetwork {
+    fn from(value: InetNetwork) -> Self {
+        IpNetwork::new(value.address, value.prefix as u8).unwrap()
     }
 }
 

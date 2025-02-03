@@ -2,6 +2,9 @@
 
 #![deny(missing_docs)]
 
+#[cfg(target_os = "android")]
+use talpid_tunnel::tun_provider::VpnServiceConfig;
+
 use self::config::Config;
 #[cfg(windows)]
 use futures::channel::mpsc;
@@ -402,6 +405,7 @@ impl WireguardMonitor {
     ) -> Result<WireguardMonitor> {
         use std::time::Duration;
 
+        use ipnetwork::IpNetwork;
         use talpid_routing::{PlatformError, Route};
         use tokio::time::timeout;
 
@@ -478,16 +482,23 @@ impl WireguardMonitor {
                 .await;
 
             // Wait for routes to come up
-            let routes_to_wait_for: std::collections::HashSet<Route> = args
-                .tun_provider
-                .lock()
-                .unwrap()
-                .config_mut()
-                .routes
-                .iter()
-                .copied()
-                .map(Route::new)
-                .collect();
+            // FIXME: PLEASE.
+
+            let routes_to_wait_for: std::collections::HashSet<Route> = {
+                let mut tun_config = args
+                    .tun_provider
+                    .lock()
+                    .unwrap();
+                let tun_config = tun_config.config_mut();
+                let cursed_config = VpnServiceConfig::new(tun_config.clone());
+                cursed_config.routes.iter().cloned().map(IpNetwork::from).map(Route::new).collect()
+            };
+            // let routes_to_wait_for: std::collections::HashSet<Route> = tun_config
+            //     .routes
+            //     .iter()
+            //     .copied()
+            //     .map(Route::new)
+            //     .collect();
 
             let wait_for_routes = args.route_manager.add_routes(routes_to_wait_for);
             timeout(Duration::from_secs(4), wait_for_routes)

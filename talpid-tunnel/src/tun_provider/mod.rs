@@ -14,6 +14,7 @@ cfg_if! {
 
         pub type Tun = VpnServiceTun;
         pub type TunProvider = AndroidTunProvider;
+        pub use self::imp::VpnServiceConfig;
     } else if #[cfg(all(unix, not(target_os = "android")))] {
         #[path = "unix.rs"]
         mod imp;
