@@ -1,10 +1,10 @@
 //! This module handles setting up and rendering changes to the UI
 
-use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use native_windows_gui::{self as nwg, ControlHandle, GridLayoutItem, ImageDecoder, WindowFlags};
+use installer_downloader::resource::DOWNLOAD_BUTTON_SIZE;
+use native_windows_gui::{self as nwg, ControlHandle, ImageDecoder, WindowFlags};
 
 use windows_sys::Win32::Foundation::COLORREF;
 use windows_sys::Win32::Graphics::Gdi::{SetBkColor, SetTextColor};
@@ -17,7 +17,8 @@ use crate::resource::{
 
 use super::delegate::QueueContext;
 
-static BANNER_IMAGE_DATA: &[u8] = include_bytes!("../logo.png");
+static BANNER_IMAGE_DATA: &[u8] = include_bytes!("../logo-icon.png");
+static BANNER_TEXT_IMAGE_DATA: &[u8] = include_bytes!("../logo-text.png");
 
 const BACKGROUND_COLOR: [u8; 3] = [0x19, 0x2e, 0x45];
 
@@ -32,13 +33,12 @@ pub const QUEUE_MESSAGE: u32 = 0x10001;
 pub struct AppWindow {
     pub window: nwg::Window,
 
-    pub grid: nwg::GridLayout,
-
     pub banner: nwg::ImageFrame,
 
     pub banner_text: nwg::Label,
+    pub banner_text_image_bitmap: RefCell<Option<nwg::Bitmap>>,
+    pub banner_text_image: nwg::ImageFrame,
     pub banner_image_bitmap: RefCell<Option<nwg::Bitmap>>,
-
     pub banner_image: nwg::ImageFrame,
     pub cancel_button: nwg::Button,
     pub download_button: nwg::Button,
@@ -46,6 +46,7 @@ pub struct AppWindow {
     pub progress_bar: nwg::ProgressBar,
 
     pub status_text: nwg::Label,
+    pub download_text: nwg::Label,
 }
 
 impl AppWindow {
@@ -73,10 +74,14 @@ impl AppWindow {
             .parent(&self.banner)
             .background_color(Some(BACKGROUND_COLOR))
             .build(&mut self.banner_image)?;
+        nwg::ImageFrame::builder()
+            .parent(&self.banner)
+            .background_color(Some(BACKGROUND_COLOR))
+            .build(&mut self.banner_text_image)?;
 
         nwg::Button::builder()
             .parent(&self.window)
-            .size((150, 32))
+            .size(try_pair_into(DOWNLOAD_BUTTON_SIZE).unwrap())
             .text(&DOWNLOAD_BUTTON_TEXT.replace("&", "&&"))
             .build(&mut self.download_button)?;
 
@@ -89,8 +94,16 @@ impl AppWindow {
         nwg::Label::builder()
             .parent(&self.window)
             .size((320, 32))
+            .text("")
             .h_align(nwg::HTextAlign::Center)
             .build(&mut self.status_text)?;
+
+        nwg::Label::builder()
+            .parent(&self.window)
+            .size((320, 32))
+            .text("")
+            .h_align(nwg::HTextAlign::Center)
+            .build(&mut self.download_text)?;
 
         const PROGRESS_BAR_MARGIN: i32 = 48;
         nwg::ProgressBar::builder()
@@ -98,36 +111,36 @@ impl AppWindow {
             .size((WINDOW_WIDTH as i32 - 2 * PROGRESS_BAR_MARGIN, 16))
             .build(&mut self.progress_bar)?;
 
-        nwg::GridLayout::builder()
-            .parent(&self.window)
-            .margin([0, 0, 0, 0])
-            .spacing(0)
-            .max_row(Some(5))
-            .max_column(Some(1))
-            .child_item(GridLayoutItem::new(&self.banner, 0, 0, 1, 2))
-            .build(&mut self.grid)?;
+        const BANNER_HEIGHT: u32 = 102;
 
-        const LOWER_AREA_TOP: i32 = 204;
-        const LOWER_AREA_VERT_MARGIN: i32 = 12;
+        self.banner.set_size(self.window.size().0, BANNER_HEIGHT);
+
+        const LOWER_AREA_YMARGIN: i32 = 48;
+        const LOWER_AREA_YPADDING: i32 = 16;
+        const LABEL_YSPACING: i32 = 16;
+
+        self.download_text.set_visible(false);
         self.status_text.set_position(
             (self.window.size().0 / 2) as i32 - (self.status_text.size().0 / 2) as i32,
-            LOWER_AREA_TOP,
-        );
-        self.progress_bar.set_position(
-            PROGRESS_BAR_MARGIN,
-            self.status_text.position().1
-                + self.status_text.size().1 as i32
-                + LOWER_AREA_VERT_MARGIN,
+            BANNER_HEIGHT as i32 + LOWER_AREA_YMARGIN,
         );
         self.download_button.set_position(
             (self.window.size().0 / 2) as i32 - (self.download_button.size().0 / 2) as i32,
-            self.progress_bar.position().1
-                + self.progress_bar.size().1 as i32
-                + LOWER_AREA_VERT_MARGIN,
+            self.status_text.position().1 + 8 + LABEL_YSPACING + LOWER_AREA_YPADDING,
+        );
+        self.download_text.set_position(
+            (self.window.size().0 / 2) as i32 - (self.status_text.size().0 / 2) as i32,
+            self.status_text.position().1 + LABEL_YSPACING + LOWER_AREA_YPADDING,
+        );
+        self.progress_bar.set_position(
+            PROGRESS_BAR_MARGIN,
+            self.download_text.position().1 + LABEL_YSPACING + LOWER_AREA_YPADDING,
         );
         self.cancel_button.set_position(
             (self.window.size().0 / 2) as i32 - (self.cancel_button.size().0 / 2) as i32,
-            self.download_button.position().1,
+            self.progress_bar.position().1
+                + self.progress_bar.size().1 as i32
+                + LOWER_AREA_YPADDING,
         );
 
         self.window.set_visible(true);
@@ -147,14 +160,19 @@ impl AppWindow {
             eprintln!("load_banner_image failed: {err}");
             // not fatal, so continue
         }
+        if let Err(err) = self.load_banner_text_image() {
+            eprintln!("load_banner_text_image failed: {err}");
+            // not fatal, so continue
+        }
 
         if let Err(err) = handle_banner_label_colors(&self.banner.handle, SET_LABEL_HANDLER_ID) {
             eprintln!("handle_banner_label_colors failed: {err}");
             // not fatal, so continue
         }
 
-        self.banner_text.set_text(&wrap_text(BANNER_DESC, 76));
-        self.banner_text.set_position(24 + 64 + 12, 32 + 12);
+        self.banner_text.set_text(BANNER_DESC);
+        self.banner_text
+            .set_position(24, self.banner_image.position().1 + 20);
         self.banner_text.set_size(
             WINDOW_WIDTH as u32 - self.banner_text.position().0 as u32 - 12,
             64,
@@ -168,20 +186,35 @@ impl AppWindow {
 
     /// Load the embedded image and display it in `banner_image`
     fn load_banner_image(&self) -> Result<(), nwg::NwgError> {
-        const BANNER_SIZE: [u32; 2] = [32, 32];
-
         let src = ImageDecoder::new()?.from_stream(BANNER_IMAGE_DATA)?;
-
         let frame = src.frame(0)?;
-        let resized_img = ImageDecoder::new()?.resize_image(&frame, BANNER_SIZE)?;
-
-        let b = resized_img.as_bitmap()?;
+        let size = frame.size();
         let mut img = self.banner_image_bitmap.borrow_mut();
-        img.replace(b);
+        let bmp = frame.as_bitmap()?;
+        img.replace(bmp);
 
         self.banner_image.set_bitmap(img.as_ref());
-        self.banner_image.set_position(24, 32 + 12);
-        self.banner_image.set_size(64, 64);
+        self.banner_image.set_position(24, 24);
+        self.banner_image.set_size(size.0, size.1);
+
+        Ok(())
+    }
+
+    /// Load the embedded image and display it in `banner_text_image`
+    fn load_banner_text_image(&self) -> Result<(), nwg::NwgError> {
+        let src = ImageDecoder::new()?.from_stream(BANNER_TEXT_IMAGE_DATA)?;
+        let frame = src.frame(0)?;
+        let size = frame.size();
+        let mut img = self.banner_text_image_bitmap.borrow_mut();
+        img.replace(frame.as_bitmap()?);
+
+        self.banner_text_image.set_bitmap(img.as_ref());
+        self.banner_text_image.set_position(
+            self.banner_image.position().0 + self.banner_image.size().0 as i32 + 8,
+            self.banner_image.position().1 + self.banner_image.size().1 as i32 / 2
+                - size.1 as i32 / 2,
+        );
+        self.banner_text_image.set_size(size.0, size.1);
 
         Ok(())
     }
@@ -251,19 +284,6 @@ fn handle_queue_message(
     )
 }
 
-/// Insert newlines to wrap text such that the max line length is `cols`
-fn wrap_text(s: &str, cols: usize) -> Cow<'_, str> {
-    if s.len() <= cols {
-        return Cow::Borrowed(s);
-    }
-    let Some(whitespace) = s[..cols].rfind(' ') else {
-        return Cow::Borrowed(s);
-    };
-    let mut new_str = String::new();
-    new_str.push_str(&s[..whitespace]);
-    new_str.push('\n');
-    if whitespace < s.len() {
-        new_str.push_str(&wrap_text(&s[whitespace + 1..], cols));
-    }
-    Cow::Owned(new_str)
+fn try_pair_into<A: TryInto<B>, B>(a: (A, A)) -> Result<(B, B), A::Error> {
+    Ok((a.0.try_into()?, a.1.try_into()?))
 }

@@ -17,8 +17,11 @@ pub trait AppDelegate {
     where
         F: Fn() + Send + 'static;
 
-    /// Set download status text
+    /// Set status text
     fn set_status_text(&mut self, text: &str);
+
+    /// Set download text
+    fn set_download_text(&mut self, text: &str);
 
     /// Show download progress bar
     fn show_download_progress(&mut self);
@@ -46,6 +49,12 @@ pub trait AppDelegate {
 
     /// Hide cancel button
     fn hide_cancel_button(&mut self);
+
+    /// Enable cancel button
+    fn enable_cancel_button(&mut self);
+
+    /// Disable cancel button
+    fn disable_cancel_button(&mut self);
 
     /// Create queue for scheduling actions on UI thread
     fn queue(&self) -> Self::Queue;

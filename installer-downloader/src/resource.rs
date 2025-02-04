@@ -3,12 +3,13 @@
 /// Window title
 pub const WINDOW_TITLE: &str = "Mullvad VPN downloader";
 /// Window width
-pub const WINDOW_WIDTH: usize = 676;
+pub const WINDOW_WIDTH: usize = 600;
 /// Window height
-pub const WINDOW_HEIGHT: usize = 390;
+pub const WINDOW_HEIGHT: usize = 334;
 
 /// Text description in the top banner
-pub const BANNER_DESC: &str = "The Mullvad VPN app installer will be downloaded from the nearest server and verified for authenticity";
+pub const BANNER_DESC: &str =
+    "The Mullvad VPN app installer will be downloaded and verified for authenticity.";
 
 /// Beta preface text
 pub const BETA_PREFACE_DESC: &str = "Want to try the new Beta version? ";
@@ -17,6 +18,9 @@ pub const BETA_LINK_TEXT: &str = "Click here!";
 
 /// Download button text
 pub const DOWNLOAD_BUTTON_TEXT: &str = "Download & install";
+
+/// Dimensions of download button (including padding)
+pub const DOWNLOAD_BUTTON_SIZE: (usize, usize) = (150, 40);
 
 /// Cancel button text
 pub const CANCEL_BUTTON_TEXT: &str = "Cancel";
