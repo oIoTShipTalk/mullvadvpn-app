@@ -8,6 +8,7 @@ import java.net.UnknownHostException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
@@ -18,6 +19,7 @@ import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeout
 import net.mullvad.mullvadvpn.compose.state.VpnSettingsUiState
 import net.mullvad.mullvadvpn.constant.WIREGUARD_PRESET_PORTS
 import net.mullvad.mullvadvpn.lib.model.Constraint
@@ -27,9 +29,12 @@ import net.mullvad.mullvadvpn.lib.model.ObfuscationMode
 import net.mullvad.mullvadvpn.lib.model.Port
 import net.mullvad.mullvadvpn.lib.model.QuantumResistantState
 import net.mullvad.mullvadvpn.lib.model.Settings
+import net.mullvad.mullvadvpn.lib.model.TunnelPreferencesRepository
+import net.mullvad.mullvadvpn.lib.shared.ConnectionProxy
 import net.mullvad.mullvadvpn.repository.AutoStartAndConnectOnBootRepository
 import net.mullvad.mullvadvpn.repository.RelayListRepository
 import net.mullvad.mullvadvpn.repository.SettingsRepository
+import net.mullvad.mullvadvpn.repository.UserPreferencesRepository
 import net.mullvad.mullvadvpn.repository.WireguardConstraintsRepository
 import net.mullvad.mullvadvpn.usecase.SystemVpnSettingsAvailableUseCase
 
@@ -50,6 +55,8 @@ class VpnSettingsViewModel(
     private val systemVpnSettingsUseCase: SystemVpnSettingsAvailableUseCase,
     private val autoStartAndConnectOnBootRepository: AutoStartAndConnectOnBootRepository,
     private val wireguardConstraintsRepository: WireguardConstraintsRepository,
+    private val tunnelPreferencesRepository: TunnelPreferencesRepository,
+    private val connectionProxy: ConnectionProxy,
     private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) : ViewModel() {
 
@@ -64,7 +71,8 @@ class VpnSettingsViewModel(
                 relayListRepository.portRanges,
                 customPort,
                 autoStartAndConnectOnBootRepository.autoStartAndConnectOnBoot,
-            ) { settings, portRanges, customWgPort, autoStartAndConnectOnBoot ->
+                tunnelPreferencesRepository.preferencesFlow,
+            ) { settings, portRanges, customWgPort, autoStartAndConnectOnBoot, preferences ->
                 VpnSettingsViewModelState(
                     mtuValue = settings?.tunnelOptions?.wireguard?.mtu,
                     isLocalNetworkSharingEnabled = settings?.allowLan == true,
@@ -83,6 +91,8 @@ class VpnSettingsViewModel(
                     availablePortRanges = portRanges,
                     systemVpnSettingsAvailable = systemVpnSettingsUseCase(),
                     autoStartAndConnectOnBoot = autoStartAndConnectOnBoot,
+                    ipv6Enabled = settings?.tunnelOptions?.genericOptions?.enableIpv6 == true,
+                    routeIpv6 = preferences.routeIpV6,
                 )
             }
             .stateIn(
@@ -248,6 +258,23 @@ class VpnSettingsViewModel(
     fun onToggleAutoStartAndConnectOnBoot(autoStartAndConnect: Boolean) {
         viewModelScope.launch(dispatcher) {
             autoStartAndConnectOnBootRepository.setAutoStartAndConnectOnBoot(autoStartAndConnect)
+        }
+    }
+
+    fun setIpV6Enabled(enable: Boolean) {
+        viewModelScope.launch(dispatcher) {
+            repository.setIpV6Enabled(enable).onLeft {
+                _uiSideEffect.send(VpnSettingsSideEffect.ShowToast.GenericError)
+            }
+        }
+    }
+
+    fun onToggleRouteIpv6Traffic(enable: Boolean) {
+        viewModelScope.launch(dispatcher) {
+            tunnelPreferencesRepository.setRouteIpv6(enable)
+            connectionProxy.disconnect()
+            delay(1000L)
+            connectionProxy.connect()
         }
     }
 
