@@ -386,7 +386,7 @@ class Login extends React.Component<IProps, IState> {
           size="full"
           onClick={this.props.createNewAccount}
           disabled={!this.allowCreateAccount()}>
-          {messages.pgettext('login-view', 'Create account')}
+          <Button.Text>{messages.pgettext('login-view', 'Create account')}</Button.Text>
         </Button>
       </Flex>
     );

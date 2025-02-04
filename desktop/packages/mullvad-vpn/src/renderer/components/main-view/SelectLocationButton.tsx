@@ -50,9 +50,11 @@ function SelectLocationButton(props: ButtonProps) {
         { location: selectedRelayName },
       )}
       {...props}>
-      {tunnelState === 'disconnected'
-        ? selectedRelayName
-        : messages.pgettext('tunnel-control', 'Switch location')}
+      <Button.Text>
+        {tunnelState === 'disconnected'
+          ? selectedRelayName
+          : messages.pgettext('tunnel-control', 'Switch location')}
+      </Button.Text>
     </Button>
   );
 }
