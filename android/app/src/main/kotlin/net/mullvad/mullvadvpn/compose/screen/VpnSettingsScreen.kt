@@ -140,6 +140,8 @@ private fun PreviewVpnSettings(
             navigateToLocalNetworkSharingInfo = {},
             navigateToWireguardPortDialog = {},
             navigateToServerIpOverrides = {},
+            onToggleIPv6Toggle = {},
+            onToggleRouteIpv6Traffic = {}
         )
     }
 }
@@ -268,6 +270,8 @@ fun VpnSettings(
         navigateToUdp2TcpSettings =
             dropUnlessResumed { navigator.navigate(Udp2TcpSettingsDestination) },
         onToggleAutoStartAndConnectOnBoot = vm::onToggleAutoStartAndConnectOnBoot,
+        onToggleIPv6Toggle = vm::setIpV6Enabled,
+        onToggleRouteIpv6Traffic = vm::onToggleRouteIpv6Traffic,
     )
 }
 
@@ -304,6 +308,8 @@ fun VpnSettingsScreen(
     navigateToShadowSocksSettings: () -> Unit,
     navigateToUdp2TcpSettings: () -> Unit,
     onToggleAutoStartAndConnectOnBoot: (Boolean) -> Unit,
+    onToggleIPv6Toggle: (Boolean) -> Unit,
+    onToggleRouteIpv6Traffic: (Boolean) -> Unit,
 ) {
     var expandContentBlockersState by rememberSaveable { mutableStateOf(false) }
     val biggerPadding = 54.dp
@@ -655,6 +661,26 @@ fun VpnSettingsScreen(
                 MtuComposeCell(mtuValue = state.mtu, onEditMtu = { navigateToMtuDialog(state.mtu) })
             }
             item { MtuSubtitle(modifier = Modifier.testTag(LAZY_LIST_LAST_ITEM_TEST_TAG)) }
+
+            item {
+                HeaderSwitchComposeCell(
+                    title = "Enable IPv6",
+                    isToggled = state.isIPv6Enabled,
+                    isEnabled = true,
+                    onCellClicked = { newValue -> onToggleIPv6Toggle(newValue) },
+                )
+                Spacer(modifier = Modifier.height(Dimens.cellLabelVerticalPadding))
+            }
+
+            item {
+                HeaderSwitchComposeCell(
+                    title = "Route IPv6 traffic",
+                    isToggled = state.routeIpv6Traffic || state.isIPv6Enabled,
+                    isEnabled = !state.isIPv6Enabled,
+                    onCellClicked = { newValue -> onToggleRouteIpv6Traffic(newValue) },
+                )
+                Spacer(modifier = Modifier.height(Dimens.cellLabelVerticalPadding))
+            }
 
             item { ServerIpOverrides(navigateToServerIpOverrides) }
         }

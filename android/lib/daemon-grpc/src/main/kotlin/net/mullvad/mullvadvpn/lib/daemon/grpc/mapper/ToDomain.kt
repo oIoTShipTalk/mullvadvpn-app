@@ -37,6 +37,7 @@ import net.mullvad.mullvadvpn.lib.model.Endpoint
 import net.mullvad.mullvadvpn.lib.model.ErrorState
 import net.mullvad.mullvadvpn.lib.model.ErrorStateCause
 import net.mullvad.mullvadvpn.lib.model.FeatureIndicator
+import net.mullvad.mullvadvpn.lib.model.GenericOptions
 import net.mullvad.mullvadvpn.lib.model.GeoIpLocation
 import net.mullvad.mullvadvpn.lib.model.GeoLocationId
 import net.mullvad.mullvadvpn.lib.model.Mtu
@@ -426,7 +427,11 @@ internal fun ManagementInterface.CustomList.toDomain(): CustomList =
     )
 
 internal fun ManagementInterface.TunnelOptions.toDomain(): TunnelOptions =
-    TunnelOptions(wireguard = wireguard.toDomain(), dnsOptions = dnsOptions.toDomain())
+    TunnelOptions(
+        wireguard = wireguard.toDomain(),
+        dnsOptions = dnsOptions.toDomain(),
+        genericOptions = generic.toDomain(),
+    )
 
 internal fun ManagementInterface.TunnelOptions.WireguardOptions.toDomain(): WireguardTunnelOptions =
     WireguardTunnelOptions(
@@ -663,6 +668,9 @@ internal fun ManagementInterface.SocksAuth.toDomain(): SocksAuth =
 
 internal fun ManagementInterface.FeatureIndicators.toDomain(): List<FeatureIndicator> =
     activeFeaturesList.map { it.toDomain() }.sorted()
+
+internal fun ManagementInterface.TunnelOptions.GenericOptions.toDomain(): GenericOptions =
+    GenericOptions(enableIpv6 = enableIpv6)
 
 internal fun ManagementInterface.FeatureIndicator.toDomain() =
     when (this) {
