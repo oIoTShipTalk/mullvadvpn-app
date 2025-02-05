@@ -14,7 +14,7 @@ use windows_sys::Win32::UI::WindowsAndMessaging::WM_CTLCOLORSTATIC;
 
 use crate::resource::{
     BANNER_DESC, BETA_LINK_TEXT, BETA_PREFACE_DESC, CANCEL_BUTTON_TEXT, DOWNLOAD_BUTTON_SIZE,
-    DOWNLOAD_BUTTON_TEXT, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH,
+    DOWNLOAD_BUTTON_TEXT, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH, CANCEL_BUTTON_SIZE,
 };
 
 use super::delegate::QueueContext;
@@ -23,6 +23,8 @@ static BANNER_IMAGE_DATA: &[u8] = include_bytes!("../logo-icon.png");
 static BANNER_TEXT_IMAGE_DATA: &[u8] = include_bytes!("../logo-text.png");
 
 const BACKGROUND_COLOR: [u8; 3] = [0x19, 0x2e, 0x45];
+/// Beta link color: #003E92
+const LINK_COLOR: [u8; 3] = [0x00, 0x3e, 0x92];
 
 /// Custom window message handler used to adjust the banner text color.
 pub const SET_LABEL_HANDLER_ID: usize = 0x10000;
@@ -95,7 +97,7 @@ impl AppWindow {
 
         nwg::Button::builder()
             .parent(&self.window)
-            .position((0, 200))
+            .size(try_pair_into(CANCEL_BUTTON_SIZE).unwrap())
             .text(CANCEL_BUTTON_TEXT)
             .build(&mut self.cancel_button)?;
 

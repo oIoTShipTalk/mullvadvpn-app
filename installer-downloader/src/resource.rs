@@ -16,6 +16,9 @@ pub const BETA_PREFACE_DESC: &str = "Want to try the new Beta version? ";
 /// Beta link text
 pub const BETA_LINK_TEXT: &str = "Click here!";
 
+/// Dimensions of cancel button (including padding)
+pub const CANCEL_BUTTON_SIZE: (usize, usize) = (150, 40);
+
 /// Download button text
 pub const DOWNLOAD_BUTTON_TEXT: &str = "Download & install";
 
