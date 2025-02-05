@@ -385,6 +385,7 @@ dependencies {
 
     implementation(libs.commons.validator)
     implementation(libs.androidx.activity.compose)
+    implementation("androidx.tv:tv-material:1.0.0")
     implementation(libs.androidx.datastore)
     implementation(libs.androidx.ktx)
     implementation(libs.androidx.coresplashscreen)
@@ -397,6 +398,7 @@ dependencies {
     implementation(libs.compose.constrainlayout)
     implementation(libs.compose.foundation)
     implementation(libs.compose.material3)
+    implementation(libs.compose.material.tv)
     implementation(libs.compose.icons.extended)
     implementation(libs.compose.ui)
     implementation(libs.compose.ui.util)

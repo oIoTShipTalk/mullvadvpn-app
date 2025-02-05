@@ -1,29 +1,34 @@
 package net.mullvad.mullvadvpn.compose.screen
 
 import android.content.Context
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.calculateEndPadding
-import androidx.compose.foundation.layout.calculateStartPadding
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -37,13 +42,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
@@ -52,6 +59,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
+import androidx.tv.material3.DrawerValue
+import androidx.tv.material3.ModalNavigationDrawer
+import androidx.tv.material3.NavigationDrawerItem
+import androidx.tv.material3.rememberDrawerState
 import co.touchlab.kermit.Logger
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
@@ -71,7 +82,6 @@ import net.mullvad.mullvadvpn.compose.button.SwitchLocationButton
 import net.mullvad.mullvadvpn.compose.component.ConnectionStatusText
 import net.mullvad.mullvadvpn.compose.component.ExpandChevron
 import net.mullvad.mullvadvpn.compose.component.MullvadCircularProgressIndicatorLarge
-import net.mullvad.mullvadvpn.compose.component.ScaffoldWithTopBarAndDeviceName
 import net.mullvad.mullvadvpn.compose.component.connectioninfo.ConnectionDetailPanel
 import net.mullvad.mullvadvpn.compose.component.connectioninfo.FeatureIndicatorsPanel
 import net.mullvad.mullvadvpn.compose.component.connectioninfo.toInAddress
@@ -268,14 +278,79 @@ fun ConnectScreen(
     onDismissNewDeviceClick: () -> Unit,
 ) {
 
-    ScaffoldWithTopBarAndDeviceName(
-        topBarColor = state.tunnelState.topBarColor(),
-        iconTintColor = state.tunnelState.iconTintColor(),
-        onSettingsClicked = onSettingsClick,
-        onAccountClicked = onAccountClick,
-        deviceName = state.deviceName,
-        timeLeft = state.daysLeftUntilExpiry,
-        snackbarHostState = snackbarHostState,
+    //    ScaffoldWithTopBarAndDeviceName(
+    //        topBarColor = state.tunnelState.topBarColor(),
+    //        iconTintColor = state.tunnelState.iconTintColor(),
+    //        onSettingsClicked = onSettingsClick,
+    //        onAccountClicked = onAccountClick,
+    //        deviceName = state.deviceName,
+    //        timeLeft = state.daysLeftUntilExpiry,
+    //        snackbarHostState = snackbarHostState,
+    //    ) {
+    val drawerState = rememberDrawerState(DrawerValue.Closed)
+    if (drawerState.currentValue == DrawerValue.Open) {
+        BackHandler(onBack = { drawerState.setValue(DrawerValue.Closed) })
+    }
+    ModalNavigationDrawer(
+        drawerContent = {
+            Column(
+                Modifier.background(
+                        Brush.horizontalGradient(listOf(Color.Black, Color.Transparent))
+                    )
+                    .fillMaxHeight()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.Start,
+                verticalArrangement = Arrangement.SpaceBetween,
+            ) {
+                NavigationDrawerItem(
+                    onClick = onAccountClick,
+                    selected = false,
+                    leadingContent = {
+                        Icon(
+                            painter = painterResource(id = R.drawable.logo_icon),
+                            contentDescription = null, // No meaningful user info or action.
+                            modifier = Modifier.size(80.dp),
+                            tint = Color.Unspecified, // Logo should not be tinted
+                        )
+                    },
+                    supportingContent =
+                        state.daysLeftUntilExpiry?.let {
+                            {
+                                Text(
+                                    text =
+                                        stringResource(
+                                            id = R.string.top_bar_time_left,
+                                            if (it >= 0) {
+                                                pluralStringResource(id = R.plurals.days, it, it)
+                                            } else {
+                                                stringResource(id = R.string.out_of_time)
+                                            },
+                                        ),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onPrimary,
+                                )
+                            }
+                        },
+                ) {
+                    Text(color = MaterialTheme.colorScheme.onPrimary, text = state.deviceName ?: "")
+                }
+                NavigationDrawerItem(
+                    onClick = onSettingsClick,
+                    selected = false,
+                    leadingContent = {
+                        Icon(
+                            tint = MaterialTheme.colorScheme.onPrimary,
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = null,
+                        )
+                    },
+                ) {
+                    Text(color = MaterialTheme.colorScheme.onPrimary, text = "Settings")
+                }
+            }
+        },
+        drawerState = drawerState,
+        scrimBrush = Brush.horizontalGradient(listOf(Color.Black, Color.Transparent)),
     ) {
         val configuration = LocalConfiguration.current
         val screenHeight = configuration.screenHeightDp.dp
@@ -283,15 +358,8 @@ fun ConnectScreen(
             if (screenHeight < SCREEN_HEIGHT_THRESHOLD) SHORT_SCREEN_INDICATOR_BIAS
             else TALL_SCREEN_INDICATOR_BIAS
 
-        Box(
-            Modifier.padding(
-                    top = it.calculateTopPadding(),
-                    start = it.calculateStartPadding(LocalLayoutDirection.current),
-                    end = it.calculateEndPadding(LocalLayoutDirection.current),
-                )
-                .fillMaxSize()
-        ) {
-            MullvadMap(state, indicatorPercentOffset)
+        Box(Modifier.fillMaxSize()) {
+            MullvadMap(state, indicatorPercentOffset, 0.75f)
 
             MullvadCircularProgressIndicatorLarge(
                 color = MaterialTheme.colorScheme.onSurface,
@@ -312,7 +380,7 @@ fun ConnectScreen(
                         .testTag(CIRCULAR_PROGRESS_INDICATOR),
             )
 
-            Box(modifier = Modifier.fillMaxSize().padding(bottom = it.calculateBottomPadding())) {
+            Box(modifier = Modifier.fillMaxSize()) {
                 NotificationBanner(
                     notification = state.inAppNotification,
                     isPlayBuild = state.isPlayBuild,
@@ -324,7 +392,7 @@ fun ConnectScreen(
                 )
                 ConnectionCard(
                     state = state,
-                    modifier = Modifier.align(Alignment.BottomCenter),
+                    modifier = Modifier.padding(start = 80.dp).align(Alignment.BottomStart),
                     onSwitchLocationClick = onSwitchLocationClick,
                     onDisconnectClick = onDisconnectClick,
                     onReconnectClick = onReconnectClick,
@@ -337,7 +405,7 @@ fun ConnectScreen(
 }
 
 @Composable
-private fun MullvadMap(state: ConnectUiState, progressIndicatorBias: Float) {
+private fun MullvadMap(state: ConnectUiState, progressIndicatorBias: Float, horizontalBias: Float) {
 
     // Distance to marker when secure/unsecure
     val baseZoom =
@@ -355,6 +423,7 @@ private fun MullvadMap(state: ConnectUiState, progressIndicatorBias: Float) {
         cameraLocation = state.location?.toLatLong() ?: fallbackLatLong,
         cameraBaseZoom = baseZoom.value,
         cameraVerticalBias = progressIndicatorBias,
+        cameraHorizontalBias = horizontalBias,
         markers = markers,
         globeColors =
             GlobeColors(

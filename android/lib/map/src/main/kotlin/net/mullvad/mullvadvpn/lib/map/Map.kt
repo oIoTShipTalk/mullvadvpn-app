@@ -32,6 +32,7 @@ fun AnimatedMap(
     cameraLocation: LatLong,
     cameraBaseZoom: Float,
     cameraVerticalBias: Float,
+    cameraHorizontalBias: Float,
     markers: List<Marker>,
     globeColors: GlobeColors,
 ) {
@@ -42,6 +43,7 @@ fun AnimatedMap(
                 baseZoom = cameraBaseZoom,
                 targetCameraLocation = cameraLocation,
                 cameraVerticalBias = cameraVerticalBias,
+                cameraHorizontalBias = cameraHorizontalBias,
             ),
         markers = markers,
         globeColors,

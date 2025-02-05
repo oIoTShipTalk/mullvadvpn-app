@@ -27,6 +27,7 @@ fun animatedCameraPosition(
     baseZoom: Float,
     targetCameraLocation: LatLong,
     cameraVerticalBias: Float,
+    cameraHorizontalBias: Float,
 ): CameraPosition {
 
     var previousLocation by remember { mutableStateOf(targetCameraLocation) }
@@ -94,6 +95,7 @@ fun animatedCameraPosition(
                 Longitude.fromFloat(longitudeAnimation.value),
             ),
         verticalBias = cameraVerticalBias,
+        horizontalBias = cameraHorizontalBias
     )
 }
 
