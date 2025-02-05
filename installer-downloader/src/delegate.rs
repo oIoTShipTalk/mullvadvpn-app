@@ -56,6 +56,12 @@ pub trait AppDelegate {
     /// Disable cancel button
     fn disable_cancel_button(&mut self);
 
+    /// Show beta text
+    fn show_beta_text(&mut self);
+
+    /// Hide beta text
+    fn hide_beta_text(&mut self);
+
     /// Create queue for scheduling actions on UI thread
     fn queue(&self) -> Self::Queue;
 }

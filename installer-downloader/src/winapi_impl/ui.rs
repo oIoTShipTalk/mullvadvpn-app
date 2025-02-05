@@ -1,18 +1,20 @@
 //! This module handles setting up and rendering changes to the UI
 
+//use std::borrow::Cow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use installer_downloader::resource::DOWNLOAD_BUTTON_SIZE;
 use native_windows_gui::{self as nwg, ControlHandle, ImageDecoder, WindowFlags};
 
 use windows_sys::Win32::Foundation::COLORREF;
-use windows_sys::Win32::Graphics::Gdi::{SetBkColor, SetTextColor};
+use windows_sys::Win32::Graphics::Gdi::{
+    CreateFontIndirectW, SetBkColor, SetBkMode, SetTextColor, COLOR_WINDOW, LOGFONTW, TRANSPARENT,
+};
 use windows_sys::Win32::UI::WindowsAndMessaging::WM_CTLCOLORSTATIC;
 
 use crate::resource::{
-    BANNER_DESC, CANCEL_BUTTON_TEXT, DOWNLOAD_BUTTON_TEXT, WINDOW_HEIGHT, WINDOW_TITLE,
-    WINDOW_WIDTH,
+    BANNER_DESC, BETA_LINK_TEXT, BETA_PREFACE_DESC, CANCEL_BUTTON_TEXT, DOWNLOAD_BUTTON_SIZE,
+    DOWNLOAD_BUTTON_TEXT, WINDOW_HEIGHT, WINDOW_TITLE, WINDOW_WIDTH,
 };
 
 use super::delegate::QueueContext;
@@ -28,6 +30,8 @@ pub const SET_LABEL_HANDLER_ID: usize = 0x10000;
 pub const QUEUE_MESSAGE_HANDLER_ID: usize = 0x10001;
 /// Custom window message used to process requests from other threads.
 pub const QUEUE_MESSAGE: u32 = 0x10001;
+/// Unique ID of the handler for the beta link.
+pub const BETA_LINK_HANDLER_ID: usize = 0x10002;
 
 #[derive(Default)]
 pub struct AppWindow {
@@ -40,6 +44,7 @@ pub struct AppWindow {
     pub banner_text_image: nwg::ImageFrame,
     pub banner_image_bitmap: RefCell<Option<nwg::Bitmap>>,
     pub banner_image: nwg::ImageFrame,
+
     pub cancel_button: nwg::Button,
     pub download_button: nwg::Button,
 
@@ -47,6 +52,9 @@ pub struct AppWindow {
 
     pub status_text: nwg::Label,
     pub download_text: nwg::Label,
+
+    pub beta_prefix: nwg::Label,
+    pub beta_link: nwg::Label,
 }
 
 impl AppWindow {
@@ -105,6 +113,20 @@ impl AppWindow {
             .h_align(nwg::HTextAlign::Center)
             .build(&mut self.download_text)?;
 
+        nwg::Label::builder()
+            .parent(&self.window)
+            .size((240, 24))
+            .text(BETA_PREFACE_DESC)
+            .h_align(nwg::HTextAlign::Left)
+            .build(&mut self.beta_prefix)?;
+        nwg::Label::builder()
+            .parent(&self.window)
+            .size((128, 24))
+            .text(BETA_LINK_TEXT)
+            .font(Some(&create_link_font()?))
+            .h_align(nwg::HTextAlign::Left)
+            .build(&mut self.beta_link)?;
+
         const PROGRESS_BAR_MARGIN: i32 = 48;
         nwg::ProgressBar::builder()
             .parent(&self.window)
@@ -143,13 +165,23 @@ impl AppWindow {
                 + LOWER_AREA_YPADDING,
         );
 
+        self.beta_prefix.set_position(
+            24,
+            self.window.size().1 as i32 - 24 - self.beta_prefix.size().1 as i32,
+        );
+        self.beta_link.set_position(
+            self.beta_prefix.position().0 + self.beta_prefix.size().0 as i32,
+            self.beta_prefix.position().1,
+        );
+        handle_beta_link_messages(&self.window, &self.beta_link, BETA_LINK_HANDLER_ID)?;
+
         self.window.set_visible(true);
 
         let event_handle = self.window.handle.clone();
         let app = Rc::new(RefCell::new(self));
 
         handle_init_and_close_messages(event_handle, app.clone());
-        handle_queue_message(event_handle, app.clone()).expect("failed to register queue handler");
+        handle_queue_message(event_handle, app.clone())?;
 
         Ok(app)
     }
@@ -242,6 +274,34 @@ fn handle_banner_label_colors(
     })
 }
 
+/// Register a window message handler for the beta link component
+fn handle_beta_link_messages(
+    parent: &nwg::Window,
+    link: &nwg::Label,
+    handler_id: usize,
+) -> Result<nwg::RawEventHandler, nwg::NwgError> {
+    let link_hwnd = link.handle.hwnd().map(|hwnd| hwnd as isize);
+    nwg::bind_raw_event_handler(&parent.handle, handler_id, move |_hwnd, msg, w, p| {
+        /// This is the RGB() macro except it takes in a slice representing RGB values
+        pub fn rgb(color: [u8; 3]) -> COLORREF {
+            color[0] as COLORREF | ((color[1] as COLORREF) << 8) | ((color[2] as COLORREF) << 16)
+        }
+
+        if msg == WM_CTLCOLORSTATIC {
+            if Some(p) == link_hwnd.map(|hwnd| hwnd as isize) {
+                unsafe {
+                    SetBkMode(w as _, TRANSPARENT as _);
+                    SetTextColor(w as _, rgb([0, 0, 255]));
+                }
+                // Out of bounds background
+                return Some(COLOR_WINDOW as _);
+            }
+        }
+
+        None
+    })
+}
+
 /// Register events for [AppWindow::on_init] and [AppWindow::on_close].
 fn handle_init_and_close_messages(
     window: impl Into<ControlHandle>,
@@ -286,4 +346,28 @@ fn handle_queue_message(
 
 fn try_pair_into<A: TryInto<B>, B>(a: (A, A)) -> Result<(B, B), A::Error> {
     Ok((a.0.try_into()?, a.1.try_into()?))
+}
+
+/// Create a link font
+/// TODO: upstream to nwg
+fn create_link_font() -> Result<nwg::Font, nwg::NwgError> {
+    let face_name = "Segoe UI".encode_utf16();
+
+    let raw_font = unsafe {
+        let mut logfont: LOGFONTW = std::mem::zeroed();
+        logfont.lfUnderline = 1;
+
+        for (dest, src) in logfont.lfFaceName.iter_mut().zip(face_name) {
+            *dest = src;
+        }
+        CreateFontIndirectW(&logfont)
+    };
+
+    if raw_font.is_null() {
+        return Err(nwg::NwgError::Unknown);
+    }
+
+    Ok(nwg::Font {
+        handle: raw_font as _,
+    })
 }

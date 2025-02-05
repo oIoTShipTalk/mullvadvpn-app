@@ -145,6 +145,7 @@ pub struct FakeAppDelegate {
     pub download_button_enabled: bool,
     pub download_progress: u32,
     pub download_progress_visible: bool,
+    pub beta_text_visible: bool,
     /// Callback registered by `on_download`
     pub download_callback: Option<Box<dyn Fn() + Send>>,
     /// Callback registered by `on_cancel`
@@ -238,6 +239,16 @@ impl AppDelegate for FakeAppDelegate {
     fn disable_cancel_button(&mut self) {
         self.call_log.push("disable_cancel_button".into());
         self.cancel_button_enabled = false;
+    }
+
+    fn show_beta_text(&mut self) {
+        self.call_log.push("show_beta_text".into());
+        self.beta_text_visible = true;
+    }
+
+    fn hide_beta_text(&mut self) {
+        self.call_log.push("hide_beta_text".into());
+        self.beta_text_visible = false;
     }
 
     fn queue(&self) -> Self::Queue {

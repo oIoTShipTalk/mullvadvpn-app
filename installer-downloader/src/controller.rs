@@ -54,6 +54,7 @@ impl AppController {
         delegate.show_download_button();
         delegate.disable_download_button();
         delegate.hide_cancel_button();
+        delegate.hide_beta_text();
 
         let (task_tx, task_rx) = mpsc::channel(1);
         tokio::spawn(handle_action_messages::<Delegate, DownloaderFactory>(
@@ -125,9 +126,13 @@ async fn handle_action_messages<Delegate, DownloaderFactory>(
         match msg {
             TaskMessage::SetVersionInfo(new_version_info) => {
                 let version_label = format_latest_version(&new_version_info.stable);
+                let has_beta = new_version_info.beta.is_some();
                 queue.queue_main(move |self_| {
                     self_.set_status_text(&version_label);
                     self_.enable_download_button();
+                    if has_beta {
+                        self_.show_beta_text();
+                    }
                 });
                 version_info = Some(new_version_info);
             }
@@ -152,6 +157,7 @@ async fn handle_action_messages<Delegate, DownloaderFactory>(
 
                     self_.set_download_text("");
                     self_.hide_download_button();
+                    self_.hide_beta_text();
                     self_.show_cancel_button();
                     self_.enable_cancel_button();
                     self_.show_download_progress();
@@ -178,16 +184,19 @@ async fn handle_action_messages<Delegate, DownloaderFactory>(
                 active_download.abort();
                 let _ = active_download.await;
 
-                let version_label = if let Some(version_info) = &version_info {
-                    format_latest_version(&version_info.stable)
+                let (version_label, has_beta) = if let Some(version_info) = &version_info {
+                    (format_latest_version(&version_info.stable), version_info.beta.is_some())
                 } else {
-                    "".to_owned()
+                    ("".to_owned(), false)
                 };
 
                 queue.queue_main(move |self_| {
                     self_.set_status_text(&version_label);
                     self_.set_download_text("");
                     self_.show_download_button();
+                    if has_beta {
+                        self_.show_beta_text();
+                    }
                     self_.hide_cancel_button();
                     self_.hide_download_progress();
                     self_.set_download_progress(0);

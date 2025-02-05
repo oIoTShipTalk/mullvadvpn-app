@@ -81,6 +81,16 @@ impl AppDelegate for AppWindow {
         self.cancel_button.set_enabled(false);
     }
 
+    fn show_beta_text(&mut self) {
+        self.beta_prefix.set_visible(true);
+        self.beta_link.set_visible(true);
+    }
+
+    fn hide_beta_text(&mut self) {
+        self.beta_prefix.set_visible(false);
+        self.beta_link.set_visible(false);
+    }
+
     fn queue(&self) -> Self::Queue {
         Queue {
             main_wnd: self.window.handle,
