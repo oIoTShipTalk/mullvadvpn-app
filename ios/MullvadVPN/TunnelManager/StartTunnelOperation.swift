@@ -106,7 +106,7 @@ class StartTunnelOperation: ResultOperation<Void>, @unchecked Sendable {
     ) {
         let persistentTunnels = interactor.getPersistentTunnels()
         let tunnel = persistentTunnels.first ?? interactor.createNewTunnel()
-        let configuration = Self.makeTunnelConfiguration()
+        let configuration = self.makeTunnelConfiguration()
 
         tunnel.setConfiguration(configuration)
         tunnel.saveToPreferences { error in
@@ -114,10 +114,12 @@ class StartTunnelOperation: ResultOperation<Void>, @unchecked Sendable {
         }
     }
 
-    private class func makeTunnelConfiguration() -> TunnelConfiguration {
+    private func makeTunnelConfiguration() -> TunnelConfiguration {
         let protocolConfig = NETunnelProviderProtocol()
         protocolConfig.providerBundleIdentifier = ApplicationTarget.packetTunnel.bundleIdentifier
         protocolConfig.serverAddress = ""
+        protocolConfig.includeAllNetworks = true
+        protocolConfig.excludeLocalNetworks = interactor.settings.excludeLocalNetworks
 
         let alwaysOnRule = NEOnDemandRuleConnect()
         alwaysOnRule.interfaceTypeMatch = .any
