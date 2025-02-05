@@ -293,7 +293,7 @@ fn handle_beta_link_messages(
             if Some(p) == link_hwnd.map(|hwnd| hwnd as isize) {
                 unsafe {
                     SetBkMode(w as _, TRANSPARENT as _);
-                    SetTextColor(w as _, rgb([0, 0, 255]));
+                    SetTextColor(w as _, rgb(LINK_COLOR));
                 }
                 // Out of bounds background
                 return Some(COLOR_WINDOW as _);
