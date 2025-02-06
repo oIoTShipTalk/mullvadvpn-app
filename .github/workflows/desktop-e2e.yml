@@ -147,7 +147,7 @@ jobs:
       !cancelled() &&
       needs.prepare-matrices.outputs.linux_matrix != '[]' &&
       needs.prepare-matrices.outputs.linux_matrix != ''
-    runs-on: [self-hosted, desktop-test, Linux] # app-test-linux
+    runs-on: [self-hosted, se-got-github-runner-013]
     timeout-minutes: 240
     strategy:
       fail-fast: false
@@ -235,7 +235,7 @@ jobs:
       needs.prepare-matrices.outputs.windows_matrix != '[]' &&
       needs.prepare-matrices.outputs.windows_matrix != ''
     name: Windows end-to-end tests
-    runs-on: [self-hosted, desktop-test, Linux] # app-test-linux
+    runs-on: [self-hosted, se-got-github-runner-013]
     timeout-minutes: 240
     strategy:
       fail-fast: false
@@ -337,7 +337,7 @@ jobs:
     name: Result matrix
     needs: [e2e-test-linux, e2e-test-windows, e2e-test-macos]
     if: '!cancelled()'
-    runs-on: [self-hosted, desktop-test, Linux]
+    runs-on: [self-hosted, se-got-github-runner-013]
     timeout-minutes: 240
     strategy:
       fail-fast: false
