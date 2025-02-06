@@ -125,3 +125,20 @@ class RelayFilterViewModel {
         }
     }
 }
+
+extension RelayFilterViewModel {
+    func getFilteredRelays(with filter: RelayFilter) -> [String] {
+        switch (filter.ownership, filter.providers) {
+        case (.any, .any):
+            return relays.map { $0.hostname }
+        case let (.owned, .only(providers)), let (.rented, .only(providers)):
+            let isOwned = filter.ownership == .owned
+            return relays.filter { $0.owned == isOwned && providers.contains($0.provider) }.map { $0.hostname }
+        case (.owned, .any), (.rented, .any):
+            let isOwned = filter.ownership == .owned
+            return relays.filter { $0.owned == isOwned }.map { $0.hostname }
+        case let (.any, .only(providers)):
+            return relays.filter { providers.contains($0.provider) }.map { $0.hostname }
+        }
+    }
+}
