@@ -106,30 +106,11 @@ class StartTunnelOperation: ResultOperation<Void>, @unchecked Sendable {
     ) {
         let persistentTunnels = interactor.getPersistentTunnels()
         let tunnel = persistentTunnels.first ?? interactor.createNewTunnel()
-        let configuration = self.makeTunnelConfiguration()
+        let configuration = TunnelConfiguration(excludeLocalNetworks: interactor.settings.localNetworkSharing)
 
         tunnel.setConfiguration(configuration)
         tunnel.saveToPreferences { error in
             completionHandler(error.map { .failure($0) } ?? .success(tunnel))
         }
-    }
-
-    private func makeTunnelConfiguration() -> TunnelConfiguration {
-        let protocolConfig = NETunnelProviderProtocol()
-        protocolConfig.providerBundleIdentifier = ApplicationTarget.packetTunnel.bundleIdentifier
-        protocolConfig.serverAddress = ""
-        protocolConfig.includeAllNetworks = true
-        protocolConfig.excludeLocalNetworks = interactor.settings.excludeLocalNetworks
-
-        let alwaysOnRule = NEOnDemandRuleConnect()
-        alwaysOnRule.interfaceTypeMatch = .any
-
-        return TunnelConfiguration(
-            isEnabled: true,
-            localizedDescription: "WireGuard",
-            protocolConfiguration: protocolConfig,
-            onDemandRules: [alwaysOnRule],
-            isOnDemandEnabled: true
-        )
     }
 }

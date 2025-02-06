@@ -35,7 +35,7 @@ public enum SchemaVersion: Int, Equatable, Sendable {
 
     /// V5 format with DAITA settings, stored as `TunnelSettingsV6`.
     case v6 = 6
-    
+
     /// V5 format with DAITA settings, stored as `TunnelSettingsV6`.
     case v7 = 7
 
@@ -58,7 +58,7 @@ public enum SchemaVersion: Int, Equatable, Sendable {
         case .v3: return .v4
         case .v4: return .v5
         case .v5: return .v6
-        case .v6: return .v6
+        case .v6: return .v7
         case .v7: return .v7
         }
     }
