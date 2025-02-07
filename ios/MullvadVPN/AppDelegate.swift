@@ -189,14 +189,16 @@ class AppDelegate: UIResponder, UIApplicationDelegate, UNUserNotificationCenterD
                 transportProvider: REST.AnyTransportProvider { [weak self] in
                     return self?.transportMonitor.makeTransport()
                 },
-                addressCache: addressCache
+                addressCache: addressCache,
+                apiContext: REST.apiContext
             )
         } else {
             proxyFactory = REST.ProxyFactory.makeProxyFactory(
                 transportProvider: REST.AnyTransportProvider { [weak self] in
                     return self?.transportMonitor.makeTransport()
                 },
-                addressCache: addressCache
+                addressCache: addressCache,
+                apiContext: REST.apiContext
             )
         }
         apiProxy = proxyFactory.createAPIProxy()
