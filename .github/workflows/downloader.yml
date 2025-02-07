@@ -53,7 +53,7 @@ jobs:
         run: ./installer-downloader/build.sh
 
       - name: Check file size
-        uses: ./.github/actions/check-binary-size
+        uses: ./.github/actions/check-file-size
         with:
           artifact: "C:/cargo-target/release/installer-downloader.exe"
           max_size: ${{ env.MAX_BINARY_SIZE }}
@@ -74,7 +74,7 @@ jobs:
         run: ./installer-downloader/build.sh
 
       - name: Check file size
-        uses: ./.github/actions/check-binary-size
+        uses: ./.github/actions/check-file-size
         with:
           artifact: "./release/installer-downloader"
           max_size: ${{ env.MAX_BINARY_SIZE }}
