@@ -68,6 +68,8 @@ else
     exit 2
 fi
 
+rustup component add rust-src
+
 $GRADLE_CMD --console plain clean
 
 $GRADLE_CMD --console plain "${GRADLE_TASKS[@]}"
