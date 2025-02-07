@@ -118,6 +118,22 @@ pub async fn test_ui_tunnel_settings(
     Ok(())
 }
 
+/// Test how various tunnel settings for OpenVPN are handled and displayed by the GUI
+#[test_function]
+pub async fn test_ui_openvpn_tunnel_settings(
+    _: TestContext,
+    rpc: ServiceClient,
+    mut mullvad_client: MullvadProxyClient,
+) -> anyhow::Result<()> {
+    // openvpn-tunnel-state.spec precondition: OpenVPN needs to be selected
+    let query = RelayQueryBuilder::new().openvpn().build();
+    helpers::apply_settings_from_relay_query(&mut mullvad_client, query).await?;
+
+    let ui_result = run_test(&rpc, &["openvpn-tunnel-state.spec"]).await?;
+    assert!(ui_result.success());
+    Ok(())
+}
+
 /// Test whether logging in and logging out work in the GUI
 #[test_function(priority = 500)]
 pub async fn test_ui_login(
