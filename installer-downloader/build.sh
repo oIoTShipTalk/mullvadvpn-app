@@ -11,7 +11,7 @@
 # lto = true
 # panic = 'abort'
 #
-# We cannot all of set the above directly in Cargo.toml since some must be set for the entire
+# We cannot set all of the above directly in Cargo.toml since some must be set for the entire
 # workspace.
 
 set -eu
