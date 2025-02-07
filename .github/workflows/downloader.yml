@@ -76,5 +76,5 @@ jobs:
       - name: Check file size
         uses: ./.github/actions/check-file-size
         with:
-          artifact: "./release/installer-downloader"
+          artifact: "./target/release/installer-downloader"
           max_size: ${{ env.MAX_BINARY_SIZE }}
