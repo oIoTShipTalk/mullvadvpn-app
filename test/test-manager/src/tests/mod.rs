@@ -28,7 +28,7 @@ use config::TEST_CONFIG;
 use helpers::{find_custom_list, get_app_env, install_app, set_location};
 pub use install::test_upgrade_app;
 use mullvad_management_interface::MullvadProxyClient;
-use test_rpc::{meta::Os, ServiceClient};
+use test_rpc::{ServiceClient, meta::Os};
 
 const WAIT_FOR_TUNNEL_STATE_TIMEOUT: Duration = Duration::from_secs(40);
 
@@ -242,7 +242,9 @@ pub async fn ensure_daemon_environment(rpc: &ServiceClient) -> Result<(), anyhow
         .await
         .context("Failed to get daemon default env variables")?;
     if current_env != default_env {
-        log::debug!("Restarting daemon due changed environment variables. Values since last test {current_env:?}");
+        log::debug!(
+            "Restarting daemon due changed environment variables. Values since last test {current_env:?}"
+        );
         rpc.set_daemon_environment(default_env)
             .await
             .context("Failed to restart daemon")?;

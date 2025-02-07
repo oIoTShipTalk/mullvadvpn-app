@@ -1,21 +1,22 @@
 use super::{
+    Error, TestContext,
     helpers::{
         self, connect_and_wait, send_guest_probes, set_relay_settings,
         unreachable_wireguard_tunnel, wait_for_tunnel_state,
     },
-    ui, Error, TestContext,
+    ui,
 };
 use crate::{assert_tunnel_state, tests::helpers::ping_sized_with_timeout};
 
 use mullvad_management_interface::MullvadProxyClient;
 use mullvad_relay_selector::query::builder::RelayQueryBuilder;
 use mullvad_types::{
+    CustomTunnelEndpoint,
     constraints::Constraint,
     relay_constraints::{
         GeographicLocationConstraint, LocationConstraint, RelayConstraints, RelaySettings,
     },
     states::TunnelState,
-    CustomTunnelEndpoint,
 };
 use std::{net::SocketAddr, time::Duration};
 use talpid_types::net::{Endpoint, TransportProtocol, TunnelEndpoint, TunnelType};
