@@ -2,6 +2,7 @@ use serde::{Deserialize, Serialize};
 
 pub mod deserializer;
 pub mod key;
+#[cfg(feature = "sign")]
 pub mod serializer;
 
 /// JSON response including signature and signed content
