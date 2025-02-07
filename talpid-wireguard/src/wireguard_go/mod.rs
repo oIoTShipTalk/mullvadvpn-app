@@ -22,6 +22,8 @@ use std::{
     path::{Path, PathBuf},
     pin::Pin,
 };
+use std::net::Ipv4Addr;
+use libc::sleep;
 #[cfg(target_os = "android")]
 use talpid_tunnel::tun_provider::Error as TunProviderError;
 #[cfg(not(target_os = "windows"))]
@@ -432,7 +434,14 @@ impl WgGoTunnel {
             cancel_receiver,
         });
 
+        
+        unsafe {
+            sleep(1);
+        }
+        log::debug!("DONE SLEEPING");
         // HACK: Check if the tunnel is working by sending a ping in the tunnel.
+        // This ping can run outside the tunnel, and may hit 10.64.0.1 (leaking internal tunnel ip)
+        // seemingly can run outside the tunnel on android?!
         tunnel.ensure_tunnel_is_running().await?;
 
         Ok(tunnel)
@@ -519,7 +528,7 @@ impl WgGoTunnel {
     /// traffic. This function blocks until the tunnel starts to serve traffic or until [connectivity::Check] times out.
     async fn ensure_tunnel_is_running(&self) -> Result<()> {
         let state = self.as_state();
-        let addr = state.config.ipv4_gateway;
+        let addr = Ipv4Addr::new(1,2,3,4);
         let cancel_receiver = state.cancel_receiver.clone();
         let mut check = connectivity::Check::new(addr, 0, cancel_receiver)
             .map_err(|err| TunnelError::RecoverableStartWireguardError(Box::new(err)))?;
