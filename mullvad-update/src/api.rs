@@ -50,8 +50,7 @@ pub struct Version {
     /// Version changelog
     pub changelog: String,
     /// App installer checksum
-    /// TODO: array
-    pub sha256: String,
+    pub sha256: [u8; 32],
 }
 
 /// Obtain version data from the Mullvad API
@@ -126,13 +125,17 @@ impl Version {
             VersionArchitecture::Arm64 => response.installers.arm64,
         };
         let installer = installer.context("Installer missing for architecture")?;
+        let sha256 = hex::decode(installer.sha256)
+            .context("Invalid checksum hex")?
+            .try_into()
+            .map_err(|_| anyhow::anyhow!("Invalid checksum length"))?;
 
         Ok(Self {
             changelog: response.changelog,
             version: response.version,
             urls: installer.urls,
             size: installer.size,
-            sha256: installer.sha256,
+            sha256,
         })
     }
 }

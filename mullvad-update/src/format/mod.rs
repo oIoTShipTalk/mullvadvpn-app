@@ -79,7 +79,7 @@ pub struct SpecificVersionArchitectureResponse {
     pub urls: Vec<String>,
     /// Size of the installer, in bytes
     pub size: usize,
-    /// TODO: hash of the installer, in bytes
+    /// Hash of the installer, hexadecimal string
     pub sha256: String,
 }
 

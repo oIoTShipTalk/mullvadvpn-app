@@ -20,7 +20,7 @@ pub struct AppDownloaderParameters<AppProgress> {
     pub app_url: String,
     pub app_size: usize,
     pub app_progress: AppProgress,
-    pub app_sha256: String,
+    pub app_sha256: [u8; 32],
 }
 
 /// See the [module-level documentation](self).
@@ -87,11 +87,7 @@ impl<AppProgress: ProgressUpdater> AppDownloader for HttpAppDownloader<AppProgre
     async fn verify(&mut self) -> Result<(), DownloadError> {
         let bin_path = self.bin_path();
         let hash = self.hash_sha256();
-        let hash: [u8; 32] = hash
-            .as_bytes()
-            .try_into()
-            .map_err(|_| DownloadError::Verification(anyhow::anyhow!("invalid hash")))?;
-        Sha256Verifier::verify(bin_path, hash)
+        Sha256Verifier::verify(bin_path, *hash)
             .await
             .map_err(DownloadError::Verification)
     }
@@ -102,7 +98,7 @@ impl<AppProgress> HttpAppDownloader<AppProgress> {
         self.tmp_dir.join("temp.exe")
     }
 
-    fn hash_sha256(&self) -> String {
-        self.params.app_sha256.clone()
+    fn hash_sha256(&self) -> &[u8; 32] {
+        &self.params.app_sha256
     }
 }
