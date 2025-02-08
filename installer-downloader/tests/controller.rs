@@ -23,7 +23,7 @@ static FAKE_VERSION: LazyLock<VersionInfo> = LazyLock::new(|| VersionInfo {
         urls: vec!["https://mullvad.net/fakeapp".to_owned()],
         size: 1234,
         changelog: "a changelog".to_owned(),
-        sha256: "".to_owned(),
+        sha256: [0u8; 32],
     },
     beta: None,
 });
