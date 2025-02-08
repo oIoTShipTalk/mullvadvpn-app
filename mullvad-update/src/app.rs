@@ -77,8 +77,7 @@ impl<AppProgress: ProgressUpdater> AppDownloader for HttpAppDownloader<AppProgre
             self.bin_path(),
             &self.params.app_url,
             &mut self.params.app_progress,
-            // FIXME: use exact size hint
-            fetch::SizeHint::Maximum(self.params.app_size),
+            fetch::SizeHint::Exact(self.params.app_size),
         )
         .await
         .map_err(DownloadError::FetchApp)
