@@ -1,4 +1,4 @@
-//! Deserializer for version API version response format
+//! Deserializer and verifier of version metadata
 
 use anyhow::Context;
 
