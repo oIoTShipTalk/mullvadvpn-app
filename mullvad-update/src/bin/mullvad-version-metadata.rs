@@ -23,7 +23,7 @@ pub enum Opt {
         #[clap(short, long)]
         file: String,
 
-        /// Secret ed25519 key used to generated, as hexadecimal string
+        /// Secret ed25519 key used for signing, as hexadecimal string
         #[clap(short, long)]
         secret: key::SecretKey,
     },
