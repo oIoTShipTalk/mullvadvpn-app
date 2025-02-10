@@ -145,7 +145,7 @@ impl RouteManagerImpl {
 /// Check whether the [NetworkState] contains any routes.
 ///
 /// Since we are the ones telling Android what routes to set, we make the assumption that:
-/// If any routes exist whatsoever, they are the the routes we specified.
+/// If any routes exist whatsoever, they are the routes we specified.
 fn has_routes(state: Option<&NetworkState>) -> bool {
     let Some(network_state) = state else {
         return false;
