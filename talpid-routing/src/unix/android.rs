@@ -105,7 +105,8 @@ impl RouteManagerImpl {
                     // update the last known NetworkState
                     self.last_state = network_state;
 
-                    if has_routes(self.last_state.as_ref()) {
+                    if has_any_routes(self.last_state.as_ref()) {
+                        log::debug!("Has any route because of update?!");
                         // notify waiting clients that routes exist
                         for client in self.waiting_for_routes.drain(..) {
                             let _ = client.send(());
@@ -126,11 +127,11 @@ impl RouteManagerImpl {
                 let _ = tx.send(());
                 return ControlFlow::Break(());
             }
-            RouteManagerCommand::WaitForRoutes(response_tx) => {
+            RouteManagerCommand::WaitForRoutes(response_tx, expected_routes) => {
                 // check if routes have already been configured on the Android system.
                 // otherwise, register a listener for network state changes.
                 // routes may come in at any moment in the future.
-                if has_routes(self.last_state.as_ref()) {
+                if has_routes(self.last_state.as_ref(), expected_routes) {
                     let _ = response_tx.send(());
                 } else {
                     self.waiting_for_routes.push(response_tx);
@@ -145,12 +146,30 @@ impl RouteManagerImpl {
 /// Check whether the [NetworkState] contains any routes.
 ///
 /// Since we are the ones telling Android what routes to set, we make the assumption that:
-/// If any routes exist whatsoever, they are the the routes we specified.
-fn has_routes(state: Option<&NetworkState>) -> bool {
+/// If any routes exist whatsoever, they are the routes we specified.
+fn has_any_routes(state: Option<&NetworkState>) -> bool {
     let Some(network_state) = state else {
         return false;
     };
+
     configured_routes(network_state).is_empty().not()
+}
+
+/// Check whether the [NetworkState] contains any routes.
+///
+/// Since we are the ones telling Android what routes to set, we make the assumption that:
+/// If any routes exist whatsoever, they are the routes we specified.
+fn has_routes(state: Option<&NetworkState>, expected_routes: Vec<Route>) -> bool {
+    let Some(network_state) = state else {
+        return false;
+    };
+
+    let routes = configured_routes(network_state);
+    if routes.is_empty().not() {
+        return false;
+    }
+
+    routes.is_superset(&HashSet::from_iter(expected_routes))
 }
 
 fn configured_routes(state: &NetworkState) -> HashSet<Route> {

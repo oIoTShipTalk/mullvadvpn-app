@@ -6,6 +6,7 @@ use self::config::Config;
 #[cfg(windows)]
 use futures::channel::mpsc;
 use futures::future::Future;
+use ipnetwork::IpNetwork;
 use obfuscation::ObfuscatorHandle;
 #[cfg(target_os = "android")]
 use std::borrow::Cow;
@@ -13,6 +14,7 @@ use std::borrow::Cow;
 use std::io;
 use std::{
     convert::Infallible,
+    iter,
     net::IpAddr,
     path::Path,
     pin::Pin,
@@ -28,8 +30,11 @@ use talpid_tunnel::{
     tun_provider::TunProvider, EventHook, TunnelArgs, TunnelEvent, TunnelMetadata,
 };
 
+use talpid_routing::Route;
+use talpid_tunnel::tun_provider::TunConfig;
 #[cfg(daita)]
 use talpid_tunnel_config_client::DaitaSettings;
+use talpid_types::net::{ALLOWED_LAN_MULTICAST_NETS, ALLOWED_LAN_NETS};
 use talpid_types::{
     net::{wireguard::TunnelParameters, AllowedTunnelTraffic, Endpoint, TransportProtocol},
     BoxedError, ErrorExt,
@@ -455,6 +460,19 @@ impl WireguardMonitor {
 
         let moved_close_obfs_sender = close_obfs_sender.clone();
         let moved_obfuscator = monitor.obfuscator.clone();
+
+        let real_routes: Vec<IpNetwork> = args
+            .tun_provider
+            .lock()
+            .unwrap()
+            .config_mut()
+            .clone()
+            .real_routes();
+
+        let expected_routes = real_routes
+            .iter()
+            .map(|ip_network| Route::new(ip_network.clone())).collect();
+
         let tunnel_fut = async move {
             let close_obfs_sender: sync_mpsc::Sender<CloseMsg> = moved_close_obfs_sender;
             let obfuscator = moved_obfuscator;
@@ -465,12 +483,23 @@ impl WireguardMonitor {
                 .on_event(TunnelEvent::InterfaceUp(metadata.clone(), allowed_traffic))
                 .await;
 
-            // Wait for routes to come up
-            args.route_manager
-                .wait_for_routes()
-                .await
-                .map_err(Error::SetupRoutingError)
-                .map_err(CloseMsg::SetupError)?;
+            use std::time::Instant;
+
+            log::debug!("Expected routes: {:?}", expected_routes);
+            let now = Instant::now();
+
+            // Code block to measure.
+            {
+                // Wait for routes to come up
+                args.route_manager
+                    .wait_for_routes(expected_routes)
+                    .await
+                    .map_err(Error::SetupRoutingError)
+                    .map_err(CloseMsg::SetupError)?;
+            }
+
+            let elapsed = now.elapsed();
+            log::debug!("Elapsed: {:.2?}", elapsed);
 
             if should_negotiate_ephemeral_peer {
                 let ephemeral_obfs_sender = close_obfs_sender.clone();
@@ -724,15 +753,15 @@ impl WireguardMonitor {
             };
 
             res.or_else(|err| {
-                    log::warn!("Failed to initialize kernel WireGuard tunnel, falling back to userspace WireGuard implementation:\n{}",err.display_chain() );
-                    Ok(runtime
-                        .block_on(Self::open_wireguard_go_tunnel(
-                            config,
-                            log_path,
-                            tun_provider,
-                        ))
-                        .map(Box::new)?)
-                })
+                log::warn!("Failed to initialize kernel WireGuard tunnel, falling back to userspace WireGuard implementation:\n{}",err.display_chain() );
+                Ok(runtime
+                    .block_on(Self::open_wireguard_go_tunnel(
+                        config,
+                        log_path,
+                        tun_provider,
+                    ))
+                    .map(Box::new)?)
+            })
         }
     }
 
