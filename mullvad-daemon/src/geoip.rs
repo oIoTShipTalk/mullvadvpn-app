@@ -65,6 +65,7 @@ impl GeoIpHandler {
     /// [`InternalDaemonEvent::LocationEvent`], which triggers an update of the current
     /// tunnel state with the `ipv4` and/or `ipv6` fields filled in.
     pub fn send_geo_location_request(&mut self, use_ipv6: bool) {
+        log::debug!("Sending GeoIpLocationRequest for {}", self.request_id);
         // Increment request ID
         self.request_id = self.request_id.wrapping_add(1);
 
@@ -111,6 +112,7 @@ async fn send_location_request(
     request_sender: RequestServiceHandle,
     use_ipv6: bool,
 ) -> Result<GeoIpLocation, Error> {
+    log::debug!("Sending location request");
     let v4_sender = request_sender.clone();
     let v4_future = async move {
         let uri_v4 = format!("https://ipv4.{}/json", *MULLVAD_CONNCHECK_HOST);

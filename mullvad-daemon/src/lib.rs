@@ -1143,6 +1143,9 @@ impl Daemon {
         self.management_interface
             .notifier()
             .notify_new_state(tunnel_state);
+
+
+        // This also seems to be a cause of leaks during tunnel reconfiguration.
         self.fetch_am_i_mullvad();
     }
 
@@ -1158,10 +1161,14 @@ impl Daemon {
         // Whether or not to poll for an IPv6 exit IP
         let use_ipv6 = match &self.tunnel_state {
             // If connected, refer to the tunnel setting
-            TunnelState::Connected { .. } => self.settings.tunnel_options.generic.enable_ipv6,
+            TunnelState::Connected { .. } => {
+                log::debug!("fetch_am_i_mullvad We are connected!");
+                self.settings.tunnel_options.generic.enable_ipv6
+            },
             // If not connected, we have to guess whether the users local connection supports IPv6.
             // The only thing we have to go on is the wireguard setting.
             TunnelState::Disconnected { .. } => {
+                log::debug!("fetch_am_i_mullvad We are disconnected!");
                 if let RelaySettings::Normal(relay_constraints) = &self.settings.relay_settings {
                     // Note that `Constraint::Any` corresponds to just IPv4
                     matches!(
@@ -1174,9 +1181,13 @@ impl Daemon {
             }
             // Fetching IP from am.i.mullvad.net should only be done from a tunnel state where a
             // connection is available. Otherwise we just exist.
-            _ => return,
+            _ => {
+                log::debug!("fetch_am_i_mullvad We are not doing it!!");
+                return
+            }
         };
 
+        log::debug!("fetch_am_i_mullvad We did it!!");
         self.location_handler.send_geo_location_request(use_ipv6);
     }
 
