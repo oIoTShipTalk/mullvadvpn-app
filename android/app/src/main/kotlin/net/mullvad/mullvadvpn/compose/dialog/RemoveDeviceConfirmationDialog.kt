@@ -32,6 +32,7 @@ private fun PreviewRemoveDeviceConfirmationDialog(
 @Destination<RootGraph>(style = DestinationStyle.Dialog::class)
 @Composable
 fun RemoveDeviceConfirmation(navigator: ResultBackNavigator<DeviceId>, device: Device) {
+    Logger.d("AAAAA show RemoveDeviceConfirmation")
     val htmlFormattedString =
         textResource(id = R.string.max_devices_confirm_removal_description, device.displayName())
     val message =

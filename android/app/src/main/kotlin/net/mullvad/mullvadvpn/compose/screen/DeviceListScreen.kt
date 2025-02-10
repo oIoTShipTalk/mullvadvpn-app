@@ -33,6 +33,7 @@ import androidx.compose.ui.tooling.preview.PreviewParameter
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.compose.dropUnlessResumed
+import co.touchlab.kermit.Logger
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
 import com.ramcosta.composedestinations.generated.destinations.LoginDestination
@@ -130,6 +131,7 @@ fun DeviceList(
         onTryAgainClicked = viewModel::fetchDevices,
         navigateToRemoveDeviceConfirmationDialog =
             dropUnlessResumed<Device> {
+                Logger.d("AAAAA: DeviceList onClick open destination")
                 navigator.navigate(RemoveDeviceConfirmationDestination(it))
             },
     )
@@ -206,6 +208,7 @@ private fun ColumnScope.DeviceListContent(
 ) {
     state.devices.forEachIndexed { index, (device, loading) ->
         DeviceListItem(device = device, isLoading = loading) {
+            Logger.d("AAAAA: DeviceListItem onClick")
             navigateToRemoveDeviceConfirmationDialog(device)
         }
         if (state.devices.lastIndex != index) {
@@ -312,7 +315,10 @@ private fun DeviceListItem(device: Device, isLoading: Boolean, onDeviceRemovalCl
                     modifier = Modifier.padding(Dimens.smallPadding)
                 )
             } else {
-                IconButton(onClick = onDeviceRemovalClicked) {
+                IconButton(onClick = {
+                    Logger.d("AAAAA: IconButton onClick")
+                    onDeviceRemovalClicked.invoke()
+                }) {
                     Icon(
                         imageVector = Icons.Default.Clear,
                         contentDescription = stringResource(id = R.string.remove_button),
