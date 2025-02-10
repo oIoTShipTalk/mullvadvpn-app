@@ -465,12 +465,24 @@ impl WireguardMonitor {
                 .on_event(TunnelEvent::InterfaceUp(metadata.clone(), allowed_traffic))
                 .await;
 
+            use std::time::Instant;
+            let now = Instant::now();
+
+            log::debug!("Starting to wait for routes!");
+            // Code block to measure.
+            {
+                args.route_manager
+                    .wait_for_routes()
+                    .await
+                    .map_err(Error::SetupRoutingError)
+                    .map_err(CloseMsg::SetupError)?;
+            }
+
+            let elapsed = now.elapsed();
+            
+            log::debug!("Elapsed: {:.2?}", elapsed);
             // Wait for routes to come up
-            args.route_manager
-                .wait_for_routes()
-                .await
-                .map_err(Error::SetupRoutingError)
-                .map_err(CloseMsg::SetupError)?;
+            log::debug!("Routes are ready!");
 
             if should_negotiate_ephemeral_peer {
                 let ephemeral_obfs_sender = close_obfs_sender.clone();
