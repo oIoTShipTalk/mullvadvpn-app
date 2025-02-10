@@ -9,6 +9,7 @@ import co.touchlab.kermit.Logger
 import java.net.InetAddress
 import kotlin.collections.ArrayList
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -47,7 +48,10 @@ class ConnectivityListener(private val connectivityManager: ConnectivityManager)
             connectivityManager
                 .defaultRawNetworkStateFlow()
                 .map { it?.toNetworkState() }
-                .onEach { notifyDefaultNetworkChange(it) }
+                .onEach {
+                    Logger.d("Notifying of new route ${it?.dnsServers}")
+                    Logger.d("Notifying of new route ${it?.routes}")
+                    notifyDefaultNetworkChange(it) }
                 .stateIn(scope, SharingStarted.Eagerly, null)
 
         _isConnected =
