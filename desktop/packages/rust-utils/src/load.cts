@@ -4,8 +4,8 @@
 /* eslint-disable @typescript-eslint/no-require-imports */
 module.exports = require('@neon-rs/load').proxy({
   platforms: {
-    'darwin-x64': () => require('../dist/darwin-x64'),
-    'darwin-arm64': () => require('../dist/darwin-arm64'),
+    'win32-x64-msvc': () => require('../dist/win32-x64-msvc'),
+    'win32-arm64-msvc': () => require('../dist/win32-arm64-msvc'),
   },
   debug: () => require('../debug/index.node'),
 });
